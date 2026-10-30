@@ -177,6 +177,8 @@ With a backend on your computer, the computer must be on and running `docker com
 
 The app talks to the same API as the website, with one difference: it can't rely on a browser's cookie between launches, so it keeps its refresh token in the app's private storage, and that storage is excluded from Android backups.
 
+For install steps, security notes and troubleshooting, see the [Android README](frontend/android/README.md).
+
 ## API
 
 Everything is under `/api/v1`. Full details are in the [Swagger docs](http://localhost:8000/docs) while the app is running.
