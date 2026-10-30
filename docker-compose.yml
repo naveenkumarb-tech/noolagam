@@ -1,0 +1,95 @@
+x-backend: &backend
+  build:
+    context: ./backend
+    target: dev
+  environment: &backend-env
+    ENVIRONMENT: development
+    LOG_LEVEL: ${LOG_LEVEL:-INFO}
+    DATABASE_URL: postgresql+asyncpg://noolagam:${POSTGRES_PASSWORD:-noolagam}@db:5432/noolagam
+    REDIS_URL: redis://redis:6379/0
+    # Local development only. Production refuses to start with this value.
+    JWT_SECRET: ${JWT_SECRET:-dev-only-secret-do-not-use-in-production-0123456789}
+    CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:5173}
+    FRONTEND_URL: ${FRONTEND_URL:-http://localhost:5173}
+    COOKIE_SECURE: "false"
+    SMTP_HOST: mailpit
+    SMTP_PORT: 1025
+    EMAIL_FROM: Noolagam <no-reply@noolagam.local>
+  volumes:
+    - ./backend:/app
+
+services:
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: noolagam
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-noolagam}
+      POSTGRES_DB: noolagam
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U noolagam -d noolagam"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  mailpit:
+    image: axllent/mailpit:latest
+    ports:
+      - "8025:8025"
+
+  api:
+    <<: *backend
+    environment:
+      <<: *backend-env
+      # Dev only: trusts the X-Forwarded-For header from the Vite proxy, for per-IP rate limits.
+      FORWARDED_ALLOW_IPS: "*"
+    command: >
+      sh -c "alembic upgrade head &&
+      exec uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload --reload-dir app --proxy-headers"
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  worker:
+    <<: *backend
+    command: celery -A app.worker.celery_app worker --loglevel=INFO --concurrency=2
+    healthcheck:
+      disable: true
+    depends_on:
+      api:
+        condition: service_healthy
+      mailpit:
+        condition: service_started
+
+  frontend:
+    image: node:22-alpine
+    user: "${UID:-1000}:${GID:-1000}"
+    working_dir: /app
+    command: sh -c "npm ci && npm run dev -- --host 0.0.0.0"
+    environment:
+      # Empty: the browser calls the same origin and Vite forwards /api, so laptop and phone both work.
+      VITE_API_URL: ${VITE_API_URL:-}
+      API_PROXY_TARGET: http://api:8000
+    ports:
+      - "5173:5173"
+    volumes:
+      - ./frontend:/app
+    depends_on:
+      api:
+        condition: service_healthy
+
+volumes:
+  postgres_data:

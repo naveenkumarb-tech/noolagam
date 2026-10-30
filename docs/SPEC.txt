@@ -1,0 +1,609 @@
+Noolagam – Personal Book Tracker
+   Noolagam (நூலகம்) means "library" in Tamil.
+1. Overview
+A multi-user app to track the books people own and read. Each user keeps their own private
+library: which books they own, who gifted each book, what they are reading now, and how
+much they have read.
+     Backend: Python, FastAPI, PostgreSQL, Redis, Celery, Docker
+     Frontend: one React codebase that runs as a website AND as an Android app (Capacitor)
+     No AI / LLM features
+     This is a public GitHub resume project: code quality, structure, tests, observability,
+     documentation and clean commit history matter as much as features.
+2. Working agreement (for Claude Code)
+     Build in the phases listed in section 16. Stop after each phase and wait for my
+     confirmation before starting the next.
+     After each phase: explain what was built, the key design decisions, and exactly how I can
+     run and test it.
+     Never commit secrets. Keep .env.example up to date.
+     Use current, non-deprecated APIs: SQLAlchemy 2.0 style, Pydantic v2, FastAPI lifespan
+     (not on_event), React 18 + TypeScript.
+     Suggest a commit message (Conventional Commits, e.g. feat: add book CRUD ) at the
+     end of each phase.
+     If a requirement is unclear or conflicts with another, ask before building.
+3. Tech stack (frozen)
+Backend
+     Python 3.12, FastAPI, Uvicorn (Gunicorn with Uvicorn workers in prod)
+     PostgreSQL 16 (full-text search with tsvector + GIN)
+     SQLAlchemy 2.0 (async) + asyncpg, Alembic migrations
+     Pydantic v2 + pydantic-settings
+     JWT auth (access + refresh tokens), passlib[bcrypt]
+     Redis (cache, rate limiting, Celery broker)
+     Celery + Celery Beat (background jobs, emails)
+     httpx (Open Library API)
+    Jinja2 (email templates)
+    OpenTelemetry tracing, structured JSON logging
+    pytest, pytest-asyncio, httpx AsyncClient
+    Ruff (lint + format), mypy (optional)
+Frontend (single codebase → web + Android)
+    React 18 + TypeScript + Vite
+    Tailwind CSS (mobile-first)
+    React Router
+    TanStack Query (server state, caching, loading/error states)
+    Axios (API client with JWT refresh interceptor)
+    React Hook Form + Zod (forms and validation)
+    Recharts (stats charts)
+    Capacitor (Android build from the same code)
+    @capacitor/preferences (token storage on Android)
+    vite-plugin-pwa (installable from the browser too)
+    Vitest + React Testing Library (basic tests)
+DevOps
+    Docker + docker-compose
+    Mailpit (catches emails in local development)
+    GitHub Actions (lint, tests, builds, Android APK)
+4. Functional requirements
+Accounts and authentication
+    FR-1: Anyone can sign up with name, email and password.
+    FR-2: After sign-up a verification email is sent; until verified the user can log in but sees a
+    "verify your email" banner and can resend it.
+    FR-3: Log in with email and password.
+    FR-4: Stay logged in using access + refresh tokens.
+    FR-5: Log out (revokes the refresh token).
+    FR-6: Forgot password: enter email, receive a reset link by email.
+    FR-7: Reset password from the emailed link; afterwards all other sessions are logged out.
+    FR-8: Change password from the profile page (requires current password).
+    FR-9: View and edit profile (name).
+    FR-10: All book data requires login; each user sees only their own books.
+Book management
+    FR-11: Add a book with title, author, and optional ISBN, page count, "gifted by".
+    FR-12: Look up a book by ISBN to auto-fill details (cover, description, page count) before
+    saving.
+    FR-13: View all books as a list with covers.
+    FR-14: View one book's full details.
+    FR-15: Edit a book.
+    FR-16: Delete a book (with confirmation).
+    FR-17: Record who gave the book, or leave blank if bought.
+Reading tracking
+    FR-18: Each book has a status: To-read, Reading or Finished.
+    FR-19: "Start reading" sets status to Reading and records the start date.
+    FR-20: Update current page while reading; show a progress bar and %.
+    FR-21: "Mark finished" records the finish date and allows a 1–5 rating.
+    FR-22: Add personal notes to a book.
+    FR-23: Move a book back to To-read (clears dates and progress).
+    FR-24: More than one book can be Reading at the same time.
+Browse and search
+    FR-25: Filter by status (All / To-read / Reading / Finished) with counts.
+    FR-26: Filter by author and by "gifted by".
+    FR-27: Search by title, author or description (full-text, ranked).
+    FR-28: Sort by date added, title, author or finish date.
+    FR-29: Paginate long lists (infinite scroll on the frontend).
+Dashboard and stats
+    FR-30: Home shows currently reading books with progress and quick actions (Update
+    page, Mark finished).
+    FR-31: Counts: total owned, finished, reading, to-read, received as gifts.
+    FR-32: Stats page per year: books finished, pages read, average days per book.
+    FR-33: Books finished per month (bar chart).
+    FR-34: Top authors.
+    FR-35: People who gifted books, with counts.
+Background processing
+     FR-36: After a book is added, fetch missing details from Open Library in the background.
+     If it fails, retry; the book stays saved without details.
+     FR-37: Verification and password reset emails are sent in the background.
+Platforms
+     FR-38: Works in a web browser on laptop and phone.
+     FR-39: The same code builds into an Android app (APK).
+5. Non-functional requirements
+Performance
+     NFR-1: Normal API responses under 300 ms (excluding external lookups).
+     NFR-2: Stats cached in Redis per user; invalidated when that user's books change.
+     NFR-3: List, filter and search queries use indexes.
+Security
+     NFR-4: Passwords hashed with bcrypt; never logged or returned.
+     NFR-5: Access token ~15 min, refresh token ~7 days, refresh rotation.
+     NFR-6: Every book query is filtered by the current user's id; accessing another user's
+     book returns 404.
+     NFR-7: Rate limiting (Redis) on login, register, forgot-password, resend-verification, per
+     IP and per email.
+     NFR-8: Verification and reset tokens: random 32 bytes, stored only as SHA-256 hash,
+     single use, time-limited (verify 24 h, reset 30 min).
+     NFR-9: Forgot-password and resend-verification never reveal whether an email is
+     registered (always the same response).
+     NFR-10: After a password reset, increment token_version so all existing refresh tokens
+     become invalid.
+     NFR-11: Secrets only from environment variables; never committed.
+     NFR-12: CORS allows only known frontend origins (web URL, Capacitor origins).
+     NFR-13: HTTPS in production.
+Reliability
+     NFR-14: Consistent error format and correct HTTP status codes.
+     NFR-15: Background jobs retry with exponential backoff and are idempotent.
+     NFR-16: /health (liveness) and /ready (DB + Redis) endpoints.
+     NFR-17: Database data persists across container restarts (Docker volume).
+Maintainability
+     NFR-18: Layered backend: routers → services → repositories.
+     NFR-19: Schema changes only through Alembic migrations.
+     NFR-20: Type hints everywhere; Ruff passes; TypeScript strict mode.
+     NFR-21: Backend test coverage ≥ 70%.
+     NFR-22: CI runs lint, tests and builds on every push and pull request.
+Observability
+     NFR-23: Structured JSON logs with request ID (and user id when known) on every line.
+     NFR-24: OpenTelemetry tracing across FastAPI, SQLAlchemy, httpx, Celery.
+Usability
+     NFR-25: Mobile-first; comfortable one-handed on a phone.
+     NFR-26: Start / update page / finish reachable in at most 2 taps from Home.
+     NFR-27: Every screen has loading, empty and error states.
+     NFR-28: Touch targets at least 44 px; text contrast at least 4.5:1; real buttons, links and
+     labelled inputs.
+Portability
+     NFR-29: Whole stack runs with docker compose up --build .
+     NFR-30: API base URL configurable for web and Android builds.
+Out of scope (for now)
+     AI / LLM features
+     iOS app and Play Store publishing
+     Offline editing
+     Social features (sharing, friends, public profiles)
+     Social login (Google etc.)
+     Lending tracker (who borrowed my book) – planned for version 2
+6. Database schema
+users
+
+column                 type                    notes
+
+id                     SERIAL PK
+
+name                   VARCHAR(100)            required
+
+email                  VARCHAR(255)            unique, stored lower-case, required
+
+password_hash          VARCHAR(255)            bcrypt
+
+is_verified            BOOLEAN                 default false
+
+token_version          INT                     default 0; bump to log out all sessions
+
+created_at             TIMESTAMPTZ             default now
+
+updated_at             TIMESTAMPTZ             auto update
+
+
+auth_tokens (email verification + password reset)
+
+column          type                   notes
+
+id              SERIAL PK
+
+user_id         INT FK                 references users.id, ON DELETE CASCADE
+
+purpose         VARCHAR(20)            verify_email / reset_password
+
+token_hash      VARCHAR(64)            SHA-256 of the raw token; raw never stored
+
+expires_at      TIMESTAMPTZ            verify 24 h, reset 30 min
+
+used_at         TIMESTAMPTZ            nullable; single use
+
+created_at      TIMESTAMPTZ            default now
+
+
+Index: (token_hash), (user_id, purpose).
+refresh_tokens
+
+column           type          notes
+
+id               SERIAL PK
+
+user_id          INT FK        references users.id, ON DELETE CASCADE
+
+jti              VARCHAR(64)   unique token id
+
+expires_at       TIMESTAMPTZ
+
+revoked_at       TIMESTAMPTZ   nullable
+
+created_at       TIMESTAMPTZ   default now
+books
+
+column                 type                   notes
+
+id                     SERIAL PK
+
+user_id                INT FK                 references users.id, ON DELETE CASCADE
+
+title                  VARCHAR(255)           required
+
+author                 VARCHAR(255)           required
+
+isbn                   VARCHAR(20)            nullable
+
+cover_url              TEXT                   nullable (filled by enrichment job)
+
+description            TEXT                   nullable (filled by enrichment job)
+
+page_count             INT                    nullable, > 0
+
+current_page           INT                    default 0
+
+gifted_by              VARCHAR(255)           nullable (null = bought)
+
+status                 VARCHAR(20)            to_read / reading / finished, default to_read
+
+rating                 SMALLINT               1–5, only when finished
+
+notes                  TEXT                   nullable
+
+started_at             DATE
+
+finished_at            DATE
+
+search_vector          TSVECTOR               generated from title, author, description
+
+created_at             TIMESTAMPTZ            default now
+
+updated_at             TIMESTAMPTZ            auto update
+
+
+Indexes: (user_id, status), (user_id, author), (user_id, gifted_by), (user_id, created_at), GIN on
+search_vector. Check constraints: status values, rating 1–5, current_page >= 0.
+Business rules
+         To "reading": set started_at = today if empty.
+       To "finished": finished_at = today, current_page = page_count (if known), started_at =
+       today if empty; rating optional.
+       Back to "to_read": clear started_at, finished_at, current_page, rating.
+       current_page cannot exceed page_count.
+       Rating only allowed when status is finished.
+       All logic lives in the service layer, not in routers.
+7. REST API
+Versioned under /api/v1 . JSON only. JWT required except where noted. Swagger UI at
+/docs .
+
+Auth (public unless noted)
+
+Method       Endpoint                              Purpose
+
+POST         /api/v1/auth/register                 Create account, send verification email
+
+POST         /api/v1/auth/login                    Email + password → access + refresh
+
+POST         /api/v1/auth/refresh                  Rotate refresh token, new access token
+
+POST         /api/v1/auth/logout                   Revoke refresh token (auth)
+
+POST         /api/v1/auth/verify-email             Verify with token
+
+POST         /api/v1/auth/resend-verification      Send verification email again
+
+POST         /api/v1/auth/forgot-password          Send reset link (always 202)
+
+POST         /api/v1/auth/reset-password           New password with token
+
+
+Users (auth)
+
+Method          Endpoint                                               Purpose
+
+GET             /api/v1/users/me                                       Current user profile
+
+PATCH           /api/v1/users/me                                       Update name
+
+POST            /api/v1/users/me/change-password                       Change password
+Books (auth)
+
+Method    Endpoint                        Purpose
+
+POST      /api/v1/books                   Add a book (queues enrichment)
+
+GET       /api/v1/books                   List; filters status, author, gifted_by; sort; page, per_page
+
+GET       /api/v1/books/{id}              Get one book
+
+PATCH     /api/v1/books/{id}              Update a book
+
+DELETE    /api/v1/books/{id}              Delete a book
+
+POST      /api/v1/books/{id}/start        Mark as reading
+
+POST      /api/v1/books/{id}/progress     Update current page
+
+POST      /api/v1/books/{id}/finish       Mark finished (optional rating)
+
+POST      /api/v1/books/{id}/reset        Move back to to-read
+
+GET       /api/v1/books/current           Currently reading
+
+GET       /api/v1/books/counts            Counts per status (for filter tabs)
+
+GET       /api/v1/books/lookup?isbn=      Open Library lookup before adding
+
+GET       /api/v1/search?q=               Full-text search (ts_rank ordering)
+
+
+Stats (auth)
+
+Method          Endpoint                                      Purpose
+
+GET             /api/v1/stats?year=2026                       Summary + charts data
+
+
+Example response:
+
+ json
+  {
+      "total_books": 84,
+      "finished": 52,
+      "currently_reading": 2,
+      "to_read": 30,
+      "gifted_books": 17,
+      "year": 2026,
+      "finished_this_year": 18,
+      "pages_read_this_year": 6240,
+      "avg_days_per_book": 14,
+      "finished_by_month": [{"month": "2026-01", "count": 1}],
+      "top_authors": [{"author": "Kalki", "count": 6}],
+      "gifted_by": [{"name": "Ravi", "count": 4}]
+  }
+
+
+Health (public)
+GET /health , GET /ready
+
+Errors
+
+  json
+
+  {"error": {"code": "BOOK_NOT_FOUND", "message": "Book not found", "request_id": ".
+
+
+
+Status codes: 400, 401, 403, 404, 409 (email already registered), 422, 429 (rate limited), 500.
+8. Backend architecture
+         routers/ → thin HTTP layer (validation, status codes)
+         services/ → business logic (status rules, stats, auth flows)
+         repositories/ → all DB queries; every book query filtered by user_id
+         schemas/ → Pydantic request/response models (never return ORM objects or internal
+         fields like password_hash, search_vector)
+         Dependency injection with FastAPI Depends (db session, current user, settings)
+Middleware and cross-cutting
+         Request-ID middleware (accept X-Request-ID or generate; return it; add to every log
+         line)
+         Structured JSON logging
+         Central exception handlers → error format above
+    OpenTelemetry instrumentation (FastAPI, SQLAlchemy, httpx, Celery)
+    CORS from env
+    Redis rate limiting
+    Redis caching for stats
+9. Background jobs and email
+    Celery worker + Redis broker; Celery Beat for scheduled jobs.
+     enrich_book(book_id) : Open Library lookup by ISBN, else title + author; fills cover_url,
+    description, page_count if empty; then refreshes the search vector. Retries with
+    exponential backoff; idempotent.
+     send_verification_email(user_id) , send_password_reset_email(user_id) : HTML
+    + plain-text Jinja2 templates; retries with backoff.
+    Beat (daily): delete expired auth tokens and revoked/expired refresh tokens.
+    Email settings from env: SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASSWORD,
+    EMAIL_FROM, FRONTEND_URL.
+    Links: {FRONTEND_URL}/verify-email?token=... , {FRONTEND_URL}/reset-password?
+    token=...
+
+    Local dev: Mailpit in docker-compose (SMTP 1025, web UI 8025).
+10. Frontend
+Platform behaviour
+    One React app in /frontend ; same screens on web and Android.
+    Phone and Android: bottom navigation bar (Home, Books, Add, Stats).
+    Laptop (≥ 1024 px): left sidebar with the same items; content max-width ~1040 px; cards
+    in 2 columns; recent books as a table.
+    API base URL from VITE_API_URL . Android cannot use localhost: use the laptop's LAN
+    IP in development and the HTTPS URL in production.
+    Tokens: access token in memory; refresh token in an httpOnly cookie on web, and in
+    @capacitor/preferences on Android. Hide this behind one tokenStorage interface.
+    Axios interceptor: on 401, call refresh once, retry the request; if refresh fails, go to Login.
+    Protected routes redirect to Login; logged-in users visiting Login go to Home.
+Design system (match the mockups)
+    Font: Manrope (Google Fonts), weights 400–800; fallback system-ui.
+    Colors:
+          Background #F3F4F6 , surface/cards #FFFFFF , borders #E5E7EB , input
+          borders #D1D5DB
+          Text #111827 , secondary text #4B5563 , tertiary #374151
+          Primary (teal) #0F766E , hover #115E59
+          Status chips:
+               Reading: text #115E59 on #CCFBF1
+               Finished: text #1E40AF on #DBEAFE (numbers #1D4ED8 )
+               To read: text #374151 on #E5E7EB
+               Gifted: text #92400E on #FEF3C7
+          Danger:    #B91C1C
+
+    Radius: cards 14–16 px, inputs and buttons 12 px, chips fully rounded.
+    Inputs and primary buttons 46–50 px tall; full-width primary buttons on phone.
+    Headings: page title 26–28 px / 800; section title 16–17 px / 700; body 14–15 px.
+    Book cover placeholder: solid colored block (color derived from the title) with the title
+    text at the bottom, until cover_url is available.
+    Icons: simple stroke icons (lucide-react), no emoji in the UI.
+    Progress bar: 8–10 px tall, teal fill on #E5E7EB .
+Screens
+Login
+    App icon (teal rounded square with book icon), "Noolagam", tagline "Track the books you
+    own, who gave them, and what you are reading."
+    Card with Email, Password (with "Forgot password?" link next to the label), "Log in"
+    primary button.
+    Below: "New to Noolagam? Create an account".
+Sign up
+    Back button, "Create your account", subtitle "Start your own library. Your books are
+    private to you."
+    Card: Name, Email, Password (min 8 chars), Confirm password, "Create account" button,
+    note "We'll email you a link to verify your address."
+    Bottom: "Already have an account? Log in".
+Forgot password
+    Back button, "Forgot password?", explanation text.
+    Card: Email, "Send reset link".
+    After submit: teal info box "Check your inbox. If an account exists for this email, a reset
+    link is on its way. The link works once and expires in 30 minutes."
+     Bottom: "Remembered it? Back to log in".
+Reset password (opened from the email link)
+     Lock icon, "Set a new password", text "You'll be logged out on your other devices."
+     New password, Confirm, rules list, "Update password" → Login with a success message.
+     Expired/used token → clear error + link to request a new one.
+Verify email (opened from the email link)
+     Success or "link expired" state with "Resend email" button.
+Home
+     "Good evening" (time-based greeting) + "Your bookshelf", search icon button (goes to
+     Books with search focused).
+     Optional banner if email not verified, with "Resend".
+     "Currently reading" + count. First book as a large card: cover, title, author, "Gifted by X"
+     chip, "Page N of M" + %, progress bar, buttons "Update page" (outline) and "Mark
+     finished" (primary). Other reading books as compact cards with progress.
+     "At a glance" 2×2 grid: Books owned, Finished (blue), To read, Received as gifts (amber).
+     Empty state: "Nothing on your nightstand" + "Add a book" button.
+My books
+     Title, search input "Search title, author, description".
+     Segmented filter tabs: All N / To read / Reading / Finished.
+     Filter chips: Author ▾, Gifted by ▾, Sort ▾.
+     List rows: cover thumbnail, title, author, status chip ("Reading · 44%", "Finished ·   ★ 5", "To
+     read"), gifted chip ("Gift · Ravi"). Tap → Book detail. Infinite scroll.
+Add book
+     "Quick add with ISBN" card: ISBN input + "Look up" button; note "Cover, description and
+     page count are filled in automatically." Lookup result pre-fills the form.
+     Divider "or enter manually".
+     Title, Author, Pages + Gifted by (side by side), Status segmented control (To read /
+     Reading / Finished), "Save book".
+Book detail
+     Back button, "Edit" button.
+     Large cover, status chip, title, author.
+     Three info tiles: Gifted by, Started, Pages.
+     Progress card: %, progress bar, "Current page (of N)" input + "Update".
+     "My notes" textarea (autosave or Save).
+     "Mark as finished" primary (opens rating picker), "Move back to To-read" and "Delete"
+     (red, with confirmation dialog).
+     Buttons change by status (To read → "Start reading").
+Reading stats
+     Title + year selector.
+     Three KPI tiles: Books finished, Pages read, Avg days per book.
+     "Finished per month" bar chart (Jan–Dec) with values above bars.
+     "Top authors" horizontal bars.
+     "Books gifted by" chips with counts.
+Profile (from an avatar/menu)
+     Name (editable), email, verification status, "Change password", "Log out".
+Laptop layout
+     Left sidebar: logo + nav (Home, My books, Add book, Stats).
+     Home: header with greeting, search input and "+ Add book"; KPI row of 4; currently
+     reading cards in 2 columns; "Recently added" table (Title, Author, Gifted by, Status) in a
+     horizontally scrollable box.
+11. Configuration
+Backend env (pydantic-settings): DATABASE_URL, REDIS_URL, JWT_SECRET,
+ACCESS_TOKEN_MINUTES, REFRESH_TOKEN_DAYS, CORS_ORIGINS,
+FRONTEND_URL, SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASSWORD,
+EMAIL_FROM, OTEL_EXPORTER_OTLP_ENDPOINT, LOG_LEVEL, ENVIRONMENT.
+Frontend env: VITE_API_URL.
+.env.example committed; real .env files in .gitignore .
+12. Folder structure
+
+ noolagam/
+ ├── backend/
+ │   ├── app/
+ │   │   ├── main.py            # app, lifespan, middleware, routers
+ │   │   ├── core/              # config, security, logging, telemetry
+ │   │   ├── db/                # async engine, session, base
+ │   │   ├── models/            # user, auth_token, refresh_token, book
+ │   │   ├── schemas/
+ │   │   ├── repositories/
+ │   │   ├── services/          # auth, books, stats, enrichment, email, cache
+ │   │   ├── routers/           # auth, users, books, search, stats, health
+ │   │   ├── middleware/        # request_id, error handlers, rate limit
+ │   │   ├── worker/            # celery app, tasks, beat schedule
+ │   │   ├── templates/email/   # verify, reset (html + txt)
+ │   │   └── cli.py             # create-user, reset-password
+ │   ├── alembic/
+ │   ├── tests/
+ │   │   ├── conftest.py
+ │   │   ├── unit/
+ │   │   └── integration/
+ │   ├── Dockerfile
+ │   ├── pyproject.toml
+ │   └── .env.example
+ ├── frontend/
+ │   ├── src/
+ │   │   ├── api/               # axios client, endpoints, token storage
+ │   │   ├── components/        # BookCard, BookRow, Cover, ProgressBar,
+ │   │   │                      # StatusChip, BottomNav, Sidebar, ...
+ │   │   ├── features/          # auth, books, stats, profile
+ │   │   ├── hooks/
+ │   │   ├── pages/
+ │   │   ├── routes/
+ │   │   └── main.tsx
+ │   ├── android/               # generated by Capacitor
+ │   ├── capacitor.config.ts
+ │   ├── Dockerfile             # build with Node, serve with Nginx
+ │   ├── nginx.conf
+ │   ├── package.json
+ │   └── .env.example
+ ├── docker-compose.yml
+ ├── .github/workflows/
+ │    ├── backend.yml
+ │    ├── frontend.yml
+ │    └── android.yml
+ ├── docs/                               # screenshots, diagrams
+ └── README.md
+
+
+13. Docker
+     Backend: multi-stage Dockerfile, python:3.12-slim, non-root user, healthcheck.
+     Frontend: Node build stage → Nginx serving static files (SPA fallback).
+     docker-compose services: api, worker, beat, db (postgres:16, named volume), redis,
+     mailpit, frontend.
+     Healthchecks; api waits for db and redis; Alembic migrations run on api start.
+      docker compose up --build starts everything.
+
+14. Testing and CI
+     Backend: pytest with a separate test database.
+         Unit: status rules, stats, token hashing/expiry.
+         Integration: auth flows (register, verify, login, refresh rotation, logout, forgot/reset,
+         token reuse rejected), book CRUD, filters, search, user isolation (user A cannot see
+         user B's books), rate limit.
+         Mock Open Library and SMTP.
+     Frontend: Vitest + Testing Library for key components and auth flow.
+     GitHub Actions:
+          backend.yml: Ruff → pytest with coverage (Postgres + Redis services) → Docker
+          build
+          frontend.yml: lint → type-check → tests → build
+          android.yml: build debug APK with Capacitor and attach to GitHub Releases on
+          tags
+
+15. README must include
+     Project description, screenshots (web + Android), live demo link
+     Architecture diagram and ER diagram (Mermaid)
+     Tech stack
+     Run locally with Docker; Mailpit URL for test emails
+     API table with curl examples; link to /docs
+    Building the Android APK
+    Deployment notes (backend on Render/Railway/AWS EC2, managed Postgres, frontend
+    on any static host)
+    Design decisions (layered architecture, token security, caching)
+16. Build phases (stop after each one)
+ 1. Repo setup: monorepo folders, backend skeleton, config, Docker compose (api, db, redis),
+    /health and /ready .
+
+ 2. Models + Alembic migrations (users, auth_tokens, refresh_tokens, books)
+          CLI commands.
+ 3. Auth core: register, login, refresh rotation, logout, current-user dependency, password
+    hashing.
+ 4. Books CRUD with filters, sorting, pagination, validation, errors, user isolation.
+ 5. Reading flow (start, progress, finish, reset), /current, /counts, /stats.
+ 6. Full-text search + Redis caching + rate limiting.
+ 7. Middleware and observability: request ID, JSON logging, exception handlers,
+    OpenTelemetry.
+ 8. Celery + Beat: Open Library enrichment, ISBN lookup, token cleanup.
+ 9. Email: Mailpit, verification and forgot/reset password flows, change password.
+10. Backend tests + backend CI.
+11. Frontend setup: Vite + TS + Tailwind, design tokens, layout (bottom nav
+          sidebar), API client, auth pages (Login, Sign up, Forgot, Reset, Verify).
+12. Frontend app pages: Home, My books, Add book, Book detail, Stats, Profile.
+13. PWA + frontend Docker/Nginx + frontend CI.
+14. Capacitor Android build + Android CI.
+15. README, diagrams, screenshots, deployment.
+

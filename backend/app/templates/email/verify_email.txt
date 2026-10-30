@@ -1,0 +1,9 @@
+Hi {{ name }},
+
+Welcome to Noolagam. Open this link to verify your email address:
+
+{{ verify_url }}
+
+The link works once and expires in {{ expires_hours }} hours.
+
+If you didn't create this account, you can ignore this email.

@@ -1,0 +1,52 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Manrope", system-ui, sans-serif;
+
+  --color-background: #f3f4f6;
+  --color-surface: #ffffff;
+  --color-border: #e5e7eb;
+  --color-input-border: #d1d5db;
+
+  --color-text: #111827;
+  --color-text-secondary: #4b5563;
+  --color-text-tertiary: #374151;
+
+  --color-primary: #0f766e;
+  --color-primary-hover: #115e59;
+
+  --color-reading: #115e59;
+  --color-reading-bg: #ccfbf1;
+  --color-finished: #1e40af;
+  --color-finished-bg: #dbeafe;
+  --color-finished-number: #1d4ed8;
+  --color-to-read: #374151;
+  --color-to-read-bg: #e5e7eb;
+  --color-gifted: #92400e;
+  --color-gifted-bg: #fef3c7;
+
+  --color-danger: #b91c1c;
+  --color-danger-bg: #fee2e2;
+
+  --color-info-text: #134e4a;
+
+  --shadow-card: 0 1px 3px rgba(17, 24, 39, 0.08);
+}
+
+/* In a layer, so that utilities such as text-text can override the default link color. */
+@layer base {
+  body {
+    margin: 0;
+    background: var(--color-background);
+    color: var(--color-text);
+    font-family: var(--font-sans);
+  }
+
+  a {
+    color: var(--color-primary);
+  }
+
+  a:hover {
+    color: var(--color-primary-hover);
+  }
+}
