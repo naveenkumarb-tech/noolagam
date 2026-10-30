@@ -28,6 +28,7 @@ The owner changed the order from section 16 of the spec: frontend screens come f
 7. Stats, with Redis caching (done)
 8. Profile: edit name and change password (done)
 9. Email verification removed at the owner's request (done)
+10. README with diagrams, screenshots and tested commands (done). Update its Status, Roadmap and test counts as things change.
 
 Every screen and feature in the spec now exists. Not built yet: JSON logging and tracing, Beat cleanup of old tokens, the rest of `cli.py`, PWA, the production frontend image, GitHub Actions, Android and the README. The next step has not been agreed yet. The spec's phases remain the checklist of what has to exist in the end.
 
