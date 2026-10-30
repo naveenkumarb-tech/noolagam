@@ -1,4 +1,5 @@
 import { apiClient } from "./client";
+import type { SessionTokens } from "./tokenStorage";
 
 export type User = {
   id: number;
@@ -16,8 +17,8 @@ export async function updateProfile(name: string): Promise<User> {
   return data;
 }
 
-export async function changePassword(currentPassword: string, newPassword: string): Promise<{ access_token: string }> {
-  const { data } = await apiClient.post<{ access_token: string }>("/users/me/change-password", {
+export async function changePassword(currentPassword: string, newPassword: string): Promise<SessionTokens> {
+  const { data } = await apiClient.post<SessionTokens>("/users/me/change-password", {
     current_password: currentPassword,
     new_password: newPassword,
   });

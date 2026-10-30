@@ -41,8 +41,15 @@ class ResetPasswordRequest(BaseModel):
     password: NewPassword
 
 
+class RefreshRequest(BaseModel):
+    """Sent by the Android app, which keeps its refresh token on the device instead of in a cookie."""
+
+    refresh_token: Annotated[str, Field(min_length=1, max_length=4096)]
+
+
 class TokenResponse(BaseModel):
     access_token: str
+    refresh_token: str | None = None
     token_type: Literal["bearer"] = "bearer"  # noqa: S105
 
 

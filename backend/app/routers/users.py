@@ -21,7 +21,7 @@ async def update_me(data: UpdateProfileRequest, user: CurrentUser, session: Sess
     return UserResponse.model_validate(await users_service.update_profile(session, user, data))
 
 
-@router.post("/me/change-password")
+@router.post("/me/change-password", response_model_exclude_none=True)
 async def change_password(
     data: ChangePasswordRequest,
     request: Request,
@@ -32,4 +32,4 @@ async def change_password(
 ) -> TokenResponse:
     ip = request.client.host if request.client else "unknown"
     await enforce_rate_limit(redis, "change_password", CHANGE_PASSWORD_LIMIT, ip, user.email)
-    return token_response(response, await auth_service.change_password(session, user, data))
+    return token_response(request, response, await auth_service.change_password(session, user, data))

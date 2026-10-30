@@ -25,8 +25,7 @@ export function SignUpForm() {
   const onSubmit = async ({ name, email, password }: SignUpFormValues) => {
     setSubmitError(null);
     try {
-      const { access_token } = await registerAccount({ name, email, password });
-      tokenStorage.setAccessToken(access_token);
+      await tokenStorage.saveSession(await registerAccount({ name, email, password }));
       navigate("/", { replace: true });
     } catch (error) {
       if (isAxiosError(error) && error.response?.status === 409) {

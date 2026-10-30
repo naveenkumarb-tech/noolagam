@@ -1,6 +1,6 @@
 import axios, { isAxiosError, type InternalAxiosRequestConfig } from "axios";
 
-import { tokenStorage } from "./tokenStorage";
+import { isNativeApp, tokenStorage, type SessionTokens } from "./tokenStorage";
 
 export type ApiErrorBody = {
   error: {
@@ -29,16 +29,29 @@ function withRefreshLock<T>(refresh: () => Promise<T>): Promise<T> {
   return navigator.locks ? navigator.locks.request("noolagam-refresh", refresh) : refresh();
 }
 
+async function requestNewTokens(): Promise<SessionTokens> {
+  if (!isNativeApp()) {
+    const { data } = await refreshClient.post<SessionTokens>("/auth/refresh");
+    return data;
+  }
+  const refreshToken = await tokenStorage.getRefreshToken();
+  if (!refreshToken) {
+    throw new Error("No saved session");
+  }
+  const { data } = await refreshClient.post<SessionTokens>("/auth/refresh", { refresh_token: refreshToken });
+  return data;
+}
+
 export function refreshAccessToken(): Promise<string> {
   refreshInFlight ??= withRefreshLock(async () => {
     try {
-      const { data } = await refreshClient.post<{ access_token: string }>("/auth/refresh");
-      tokenStorage.setAccessToken(data.access_token);
-      return data.access_token;
+      const tokens = await requestNewTokens();
+      await tokenStorage.saveSession(tokens);
+      return tokens.access_token;
     } catch (error) {
       // Only a rejected session logs the user out; a dropped connection may recover.
       if (isAxiosError(error) && error.response?.status === 401) {
-        tokenStorage.setAccessToken(null);
+        await tokenStorage.clearSession();
       }
       throw error;
     }
@@ -52,6 +65,10 @@ apiClient.interceptors.request.use((config) => {
   const token = tokenStorage.getAccessToken();
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
+  }
+  if (isNativeApp()) {
+    // Asks for the refresh token in the response, as an app has nowhere to keep a cookie between launches.
+    config.headers["X-Client-Type"] = "native";
   }
   return config;
 });

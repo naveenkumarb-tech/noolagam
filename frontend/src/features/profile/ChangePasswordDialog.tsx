@@ -33,9 +33,9 @@ export function ChangePasswordDialog({ onChanged, onClose }: ChangePasswordDialo
   const change = useMutation({
     mutationFn: ({ currentPassword, password }: ChangePasswordFormValues) =>
       changePassword(currentPassword, password),
-    onSuccess: ({ access_token }) => {
-      // The old token stopped working with this change, so the new one replaces it immediately.
-      tokenStorage.setAccessToken(access_token);
+    onSuccess: async (tokens) => {
+      // The old tokens stopped working with this change, so the new ones replace them immediately.
+      await tokenStorage.saveSession(tokens);
       onChanged();
     },
     onError: (error) => {

@@ -1,4 +1,5 @@
 import { apiClient } from "./client";
+import { tokenStorage } from "./tokenStorage";
 
 export type LoginRequest = {
   email: string;
@@ -14,6 +15,7 @@ export type RegisterRequest = {
 export type TokenResponse = {
   access_token: string;
   token_type: string;
+  refresh_token?: string;
 };
 
 export async function login(credentials: LoginRequest): Promise<TokenResponse> {
@@ -36,5 +38,6 @@ export async function resetPassword(token: string, password: string): Promise<vo
 }
 
 export async function logout(): Promise<void> {
-  await apiClient.post("/auth/logout");
+  const refreshToken = await tokenStorage.getRefreshToken();
+  await apiClient.post("/auth/logout", refreshToken ? { refresh_token: refreshToken } : undefined);
 }

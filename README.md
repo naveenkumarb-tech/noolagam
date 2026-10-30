@@ -4,9 +4,9 @@
 
 Noolagam (நூலகம்) means "library" in Tamil. Each person gets a private library with reading progress, notes, full-text search and yearly stats. Add a book by its ISBN and the cover, description and page count are filled in automatically.
 
-Built with FastAPI, PostgreSQL, Redis, Celery and React. The screens are mobile-first, and the same React code will also become the Android app.
+Built with FastAPI, PostgreSQL, Redis, Celery and React. The same React code runs as a website and as an Android app, built with Capacitor.
 
-> **Status:** every feature below works locally, with 282 backend tests (96% coverage) and 193 frontend tests. There is no live demo yet. The Android build, CI and production frontend image are still to come: see [Roadmap](#roadmap).
+> **Status:** every feature below works locally on the web and on Android, with 297 backend tests (96% coverage) and 207 frontend tests. There is no live demo yet, so the Android app needs a backend running on the same Wi-Fi. CI and a production frontend image are still to come: see [Roadmap](#roadmap).
 
 ## Screenshots
 
@@ -17,7 +17,11 @@ Built with FastAPI, PostgreSQL, Redis, Celery and React. The screens are mobile-
   <img src="docs/screenshots/phone-stats.png" alt="Reading stats with a chart of books finished per month" width="24%">
 </p>
 
-The same screens adapt to a laptop:
+The screenshots above are from a phone's browser. The Android app shows the same screens:
+
+<img src="docs/screenshots/android-home.png" alt="Home screen in the Android app, between Android's status and navigation bars" width="24%">
+
+They also adapt to a laptop:
 
 <img src="docs/screenshots/laptop-home.png" alt="Home on a laptop with a sidebar, counts and reading cards" width="100%">
 
@@ -36,7 +40,7 @@ The same screens adapt to a laptop:
 
 ```mermaid
 flowchart LR
-    client["Browser<br/>React + TypeScript"] -->|"/api"| api["FastAPI<br/>routers → services → repositories"]
+    client["Browser or Android app<br/>React + TypeScript"] -->|"/api"| api["FastAPI<br/>routers → services → repositories"]
     api --> db[("PostgreSQL<br/>data and search index")]
     api --> redis[("Redis<br/>rate limits, stats cache, job queue")]
     api -->|ISBN lookup| ol["Open Library"]
@@ -114,6 +118,7 @@ erDiagram
 | **Auth** | JWT access and refresh tokens (PyJWT), bcrypt |
 | **Frontend** | React 18, TypeScript, Vite, Tailwind CSS, React Router, TanStack Query, Axios, React Hook Form, Zod, Recharts |
 | **Testing and quality** | pytest, Vitest, React Testing Library, Ruff, mypy, ESLint |
+| **Android** | Capacitor 8, `@capacitor/preferences`, `@capacitor/app` |
 | **Local setup** | Docker Compose, Mailpit |
 
 ## Run it locally
@@ -151,6 +156,26 @@ docker compose exec api python -m app.cli seed-books you@example.com
 Copy `.env.example` to `.env` and fill in an SMTP service. It needs STARTTLS, usually on port 587. Then run `docker compose up -d`. `.env` is ignored by Git, and `.env.example` explains each setting.
 
 For Gmail, use an [App Password](https://myaccount.google.com/apppasswords), which requires 2-Step Verification. Your normal password won't work.
+
+## Android app
+
+Build the APK with Docker. You don't need Java or Android Studio. The API address is built into the app:
+
+```bash
+# A backend on your computer, for phones on the same Wi-Fi (find your address with: hostname -I)
+frontend/build-apk.sh http://192.168.1.50:8000
+
+# Or a hosted backend, which works anywhere
+frontend/build-apk.sh https://api.example.com
+```
+
+The first build takes several minutes, and the result is `apk/noolagam-debug.apk`.
+
+To install it, copy the file to your phone and open it, allowing installs from that app when Android asks. Later builds on the same computer update the app in place and keep you logged in. This is a debug build, for sideloading rather than the Play Store.
+
+With a backend on your computer, the computer must be on and running `docker compose up`, and your phone on the same Wi-Fi. The app only allows plain `http://` when it was built with an `http://` address, and if your computer's address changes, the app needs rebuilding.
+
+The app talks to the same API as the website, with one difference: it can't rely on a browser's cookie between launches, so it keeps its refresh token in the app's private storage, and that storage is excluded from Android backups.
 
 ## API
 
@@ -246,7 +271,7 @@ docker run --rm --user "$(id -u):$(id -g)" -e HOME=/tmp -v "$PWD/frontend":/app 
 **Layered backend.** Keeping HTTP, business rules and database queries apart means rules such as "a rating is only allowed on a finished book" live in one place, and every book query can be limited to the current user.
 
 **Token security**
-- The access token lasts 15 minutes and is held only in memory. The refresh token lasts 7 days, in an httpOnly cookie that JavaScript can't read.
+- The access token lasts 15 minutes and is held only in memory. The refresh token lasts 7 days, in an httpOnly cookie that JavaScript can't read. The Android app keeps it in private app storage instead, and a cookie alone can never make the API reveal it.
 - Refresh tokens rotate on every use. Reusing an old one is treated as theft and ends all of that user's sessions.
 - Each token carries a version number. A password reset or change raises it, which immediately ends every existing session.
 - Reset tokens are stored only as SHA-256 hashes, work once and expire in 30 minutes. They are created inside the worker, so the raw token never passes through the job queue.
@@ -275,9 +300,9 @@ This hasn't been deployed yet. When it is, it will need:
 
 ## Roadmap
 
-- [ ] Android APK built with Capacitor
+- [x] Android APK built with Capacitor
 - [ ] Installable web app (PWA) and a production frontend image with Nginx
-- [ ] GitHub Actions for lint, tests and builds
+- [ ] GitHub Actions for lint, tests, builds and publishing the APK
 - [ ] Structured JSON logging and OpenTelemetry tracing
 - [ ] Scheduled cleanup of expired tokens
 - [ ] Live demo

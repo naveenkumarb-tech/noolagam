@@ -34,7 +34,7 @@ export function ResetPasswordForm({ token }: ResetPasswordFormProps) {
     try {
       await resetPassword(token ?? "", password);
       // The reset ended every session, including one open in this browser.
-      tokenStorage.setAccessToken(null);
+      await tokenStorage.clearSession();
       const state: LoginLocationState = {
         successMessage: "Your password has been updated. Log in with your new password.",
       };

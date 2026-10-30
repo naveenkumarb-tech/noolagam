@@ -9,7 +9,8 @@ x-backend: &backend
     REDIS_URL: redis://redis:6379/0
     # Local development only. Production refuses to start with this value.
     JWT_SECRET: ${JWT_SECRET:-dev-only-secret-do-not-use-in-production-0123456789}
-    CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:5173}
+    # The last two are the Android app, which runs its pages from localhost on the phone.
+    CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:5173,http://localhost,https://localhost}
     FRONTEND_URL: ${FRONTEND_URL:-http://localhost:5173}
     COOKIE_SECURE: "false"
     # Mailpit catches all email unless a real service is set in .env. See .env.example.

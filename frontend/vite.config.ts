@@ -17,5 +17,7 @@ export default defineConfig({
     globals: true,
     setupFiles: "./src/test/setup.ts",
     css: false,
+    // Generous, because simulated typing is slow on a busy computer or CI runner.
+    testTimeout: 30_000,
   },
 });

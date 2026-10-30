@@ -23,8 +23,7 @@ export function LoginForm() {
   const onSubmit = async (values: LoginFormValues) => {
     setSubmitError(null);
     try {
-      const { access_token } = await login(values);
-      tokenStorage.setAccessToken(access_token);
+      await tokenStorage.saveSession(await login(values));
       navigate("/", { replace: true });
     } catch (error) {
       setSubmitError(apiErrorMessage(error, { 401: "That email and password don't match. Please try again." }));

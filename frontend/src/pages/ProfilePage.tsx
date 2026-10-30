@@ -18,7 +18,7 @@ export function ProfilePage() {
   const signOut = useMutation({
     mutationFn: logout,
     // The session ends on this device even if the server could not be reached.
-    onSettled: () => tokenStorage.setAccessToken(null),
+    onSettled: () => tokenStorage.clearSession(),
   });
 
   return (

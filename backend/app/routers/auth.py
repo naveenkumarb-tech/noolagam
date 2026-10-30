@@ -12,11 +12,18 @@ from app.middleware.rate_limit import (
     REGISTER_LIMIT,
     enforce_rate_limit,
 )
-from app.routers.tokens import REFRESH_COOKIE, REFRESH_COOKIE_PATH, token_response
+from app.routers.tokens import (
+    REFRESH_COOKIE,
+    REFRESH_COOKIE_PATH,
+    cookie_token_response,
+    native_token_response,
+    token_response,
+)
 from app.schemas.auth import (
     ForgotPasswordRequest,
     LoginRequest,
     MessageResponse,
+    RefreshRequest,
     RegisterRequest,
     ResetPasswordRequest,
     TokenResponse,
@@ -35,32 +42,42 @@ def _client_ip(request: Request) -> str:
     return request.client.host if request.client else "unknown"
 
 
-@router.post("/register", status_code=status.HTTP_201_CREATED)
+@router.post("/register", status_code=status.HTTP_201_CREATED, response_model_exclude_none=True)
 async def register(
     data: RegisterRequest, request: Request, response: Response, session: SessionDep, redis: RedisDep
 ) -> TokenResponse:
     await enforce_rate_limit(redis, "register", REGISTER_LIMIT, _client_ip(request), data.email)
-    return token_response(response, await auth_service.register(session, data))
+    return token_response(request, response, await auth_service.register(session, data))
 
 
-@router.post("/login")
+@router.post("/login", response_model_exclude_none=True)
 async def login(
     data: LoginRequest, request: Request, response: Response, session: SessionDep, redis: RedisDep
 ) -> TokenResponse:
     await enforce_rate_limit(redis, "login", LOGIN_LIMIT, _client_ip(request), data.email)
-    return token_response(response, await auth_service.login(session, data))
+    return token_response(request, response, await auth_service.login(session, data))
 
 
-@router.post("/refresh")
+@router.post("/refresh", response_model_exclude_none=True)
 async def refresh(
-    response: Response, session: SessionDep, refresh_token: RefreshCookie = None
+    response: Response,
+    session: SessionDep,
+    data: RefreshRequest | None = None,
+    refresh_token: RefreshCookie = None,
 ) -> TokenResponse:
-    return token_response(response, await auth_service.refresh(session, refresh_token))
+    if data is not None:
+        return native_token_response(await auth_service.refresh(session, data.refresh_token))
+    return cookie_token_response(response, await auth_service.refresh(session, refresh_token))
 
 
 @router.post("/logout", status_code=status.HTTP_204_NO_CONTENT)
-async def logout(response: Response, session: SessionDep, refresh_token: RefreshCookie = None) -> None:
-    await auth_service.logout(session, refresh_token)
+async def logout(
+    response: Response,
+    session: SessionDep,
+    data: RefreshRequest | None = None,
+    refresh_token: RefreshCookie = None,
+) -> None:
+    await auth_service.logout(session, data.refresh_token if data else refresh_token)
     response.delete_cookie(REFRESH_COOKIE, path=REFRESH_COOKIE_PATH)
 
 

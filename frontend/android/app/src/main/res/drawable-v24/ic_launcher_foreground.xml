@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The book from the app's logo, sized for the 66dp safe zone of a 108dp adaptive icon. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <group android:scaleX="2" android:scaleY="2" android:translateX="30" android:translateY="30">
+        <path
+            android:pathData="M4,19.5V5a2,2 0 0,1 2,-2h14v16H6a2,2 0 0,0 -2,2.5"
+            android:strokeWidth="2"
+            android:strokeColor="#FFFFFF"
+            android:strokeLineJoin="round"
+            android:strokeLineCap="round" />
+        <path android:pathData="M6,21h14" android:strokeWidth="2" android:strokeColor="#FFFFFF" android:strokeLineCap="round" />
+        <path android:pathData="M9,7h7" android:strokeWidth="2" android:strokeColor="#FFFFFF" android:strokeLineCap="round" />
+    </group>
+</vector>
