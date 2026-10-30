@@ -1,9 +1,9 @@
 import smtplib
+import ssl
 from email.message import EmailMessage
 from unittest.mock import MagicMock
 
 import pytest
-from celery import Task
 
 from app.core.config import get_settings
 from app.services import email as email_service
@@ -60,11 +60,15 @@ def test_send_with_credentials_uses_tls(monkeypatch: pytest.MonkeyPatch) -> None
 
     connection = smtp.return_value.__enter__.return_value
     connection.starttls.assert_called_once()
+    context = connection.starttls.call_args.kwargs["context"]
+    assert context.verify_mode == ssl.CERT_REQUIRED
+    assert context.check_hostname is True
     connection.login.assert_called_once()
 
 
-@pytest.mark.parametrize("task", [tasks.send_password_reset_email, tasks.send_verification_email])
-def test_task_retries_on_mail_failures_with_backoff(task: Task) -> None:
+def test_task_retries_on_mail_failures_with_backoff() -> None:
+    task = tasks.send_password_reset_email
+
     assert smtplib.SMTPException in task.autoretry_for
     assert OSError in task.autoretry_for
     assert task.retry_backoff is True
@@ -77,9 +81,3 @@ def test_queueing_failure_does_not_raise(monkeypatch: pytest.MonkeyPatch) -> Non
     )
 
     tasks.enqueue_password_reset_email(1)
-
-
-def test_queueing_a_verification_email_failure_does_not_raise(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(tasks.send_verification_email, "apply_async", MagicMock(side_effect=ConnectionError))
-
-    tasks.enqueue_verification_email(1)

@@ -3,13 +3,11 @@ import { CurrentlyReading } from "../features/home/CurrentlyReading";
 import { HomeHeader } from "../features/home/HomeHeader";
 import { RecentlyAdded } from "../features/home/RecentlyAdded";
 import { UpNext } from "../features/home/UpNext";
-import { VerifyEmailBanner } from "../features/home/VerifyEmailBanner";
 
 export function HomePage() {
   return (
     <div className="flex flex-col gap-5 lg:gap-7">
       <HomeHeader />
-      <VerifyEmailBanner />
       <div className="flex flex-col gap-5 lg:gap-7">
         <div className="lg:order-1">
           <CurrentlyReading />

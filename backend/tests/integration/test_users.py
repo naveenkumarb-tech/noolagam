@@ -22,7 +22,7 @@ async def test_me_returns_the_profile_without_internal_fields(client: AsyncClien
     response = await client.get("/api/v1/users/me", headers=await auth_headers(client))
 
     assert response.status_code == 200
-    assert response.json() == {"id": 1, "name": NAME, "email": EMAIL, "is_verified": False}
+    assert response.json() == {"id": 1, "name": NAME, "email": EMAIL}
 
 
 async def test_me_requires_a_token(client: AsyncClient) -> None:
@@ -93,13 +93,10 @@ async def test_name_is_validated(client: AsyncClient, name: object) -> None:
 async def test_only_the_name_can_be_changed_this_way(client: AsyncClient) -> None:
     headers = await auth_headers(client)
 
-    await client.patch(
-        ME, json={"name": "New", "email": "evil@example.com", "is_verified": True}, headers=headers
-    )
+    await client.patch(ME, json={"name": "New", "email": "evil@example.com"}, headers=headers)
 
     profile = (await client.get(ME, headers=headers)).json()
     assert profile["email"] == EMAIL
-    assert profile["is_verified"] is False
 
 
 async def test_profile_changes_need_login(client: AsyncClient) -> None:

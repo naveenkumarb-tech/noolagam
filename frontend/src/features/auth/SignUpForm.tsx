@@ -80,9 +80,6 @@ export function SignUpForm() {
       <Button type="submit" isLoading={isSubmitting} className="mt-1">
         {isSubmitting ? "Creating account…" : "Create account"}
       </Button>
-      <p className="m-0 text-center text-[13px] leading-normal text-text-secondary">
-        We'll email you a link to verify your address.
-      </p>
     </form>
   );
 }

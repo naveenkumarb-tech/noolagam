@@ -12,9 +12,12 @@ x-backend: &backend
     CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:5173}
     FRONTEND_URL: ${FRONTEND_URL:-http://localhost:5173}
     COOKIE_SECURE: "false"
-    SMTP_HOST: mailpit
-    SMTP_PORT: 1025
-    EMAIL_FROM: Noolagam <no-reply@noolagam.local>
+    # Mailpit catches all email unless a real service is set in .env. See .env.example.
+    SMTP_HOST: ${SMTP_HOST:-mailpit}
+    SMTP_PORT: ${SMTP_PORT:-1025}
+    SMTP_USER: ${SMTP_USER:-}
+    SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+    EMAIL_FROM: ${EMAIL_FROM:-Noolagam <no-reply@noolagam.local>}
   volumes:
     - ./backend:/app
 

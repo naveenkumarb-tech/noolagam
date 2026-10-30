@@ -4,7 +4,6 @@ export type User = {
   id: number;
   name: string;
   email: string;
-  is_verified: boolean;
 };
 
 export async function getCurrentUser(): Promise<User> {

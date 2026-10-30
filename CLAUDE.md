@@ -27,6 +27,7 @@ The owner changed the order from section 16 of the spec: frontend screens come f
 6. My books and Book details, with search, filters, edit, delete, notes and reset (done)
 7. Stats, with Redis caching (done)
 8. Profile: edit name and change password (done)
+9. Email verification removed at the owner's request (done)
 
 Every screen and feature in the spec now exists. Not built yet: JSON logging and tracing, Beat cleanup of old tokens, the rest of `cli.py`, PWA, the production frontend image, GitHub Actions, Android and the README. The next step has not been agreed yet. The spec's phases remain the checklist of what has to exist in the end.
 
@@ -38,7 +39,8 @@ Security and stack:
 - The web refresh cookie needs a same-site deployment: Nginx proxies `/api` so frontend and API share one origin. Cookie settings come from env. Android gets the refresh token in JSON.
 - Change password also logs out other sessions, starts a new session for this device and cancels unused reset links. A wrong current password is 400, not 401, because the app reads 401 as an expired session. It is rate limited per IP and email. Reusing a refresh token revokes all of the user's sessions, and the web app locks refreshes so two tabs cannot trigger this by accident.
 - Logout authenticates with the refresh token, so an expired access token cannot block it.
-- `POST /auth/register` returns the same token response as login and sets the refresh cookie, so a new user goes straight to Home (FR-2 lets unverified users in; the mockup also goes to Home).
+- Email verification does not exist: the owner removed it, overriding FR-2, the Verify email screen, the Home banner, `users.is_verified`, `/auth/verify-email`, `/auth/resend-verification` and `send_verification_email` in docs/SPEC.txt. Password reset emails stay. Do not add verification back unless asked.
+- `POST /auth/register` returns the same token response as login and sets the refresh cookie, so a new user goes straight to Home.
 - `POST /auth/reset-password` returns 204, and 400 `INVALID_RESET_TOKEN` for an unknown, expired or used link. Requesting a new link cancels the previous one.
 - A refresh token from before a password reset gets a plain 401. It must not count as reuse, or a stale device would log out the session created after the reset.
 - The reset token is created in the Celery task, so the raw token never passes through Redis. The task is queued after the response, so timing does not reveal whether an email is registered.
@@ -63,6 +65,7 @@ API additions:
 
 Schema:
 - Extra indexes: `(user_id, finished_at)`, `(user_id, title)`, `refresh_tokens.user_id`. Extra check: `page_count > 0`.
+- Known quirk: check constraints in the database have doubled names such as `ck_books_ck_books_status`, because the migrations passed full names and Alembic applied the naming convention again. They are enforced correctly. Keep the existing names when referring to them, and use `op.f("name")` for new constraints.
 
 Background and search:
 - Celery tasks run async code with `asyncio.run` and a `NullPool` engine. Enqueue after commit; a Redis outage must not fail the request.
@@ -71,6 +74,7 @@ Background and search:
 - ISBNs are normalised and checksum-validated on both client and server.
 - Search uses the `simple` config, with the last word matched as a prefix. Tamil text is tested and works: whole words, several words and prefixes all find the right book.
 - Jaeger is an optional Compose profile.
+- Real email is set with `SMTP_*`, `EMAIL_FROM` and `FRONTEND_URL` in the root `.env`, which Git ignores; `.env.example` documents them. All blank means Mailpit. Run `docker compose up -d` to apply changes, because `restart` does not reread `.env`. Connections use STARTTLS with certificate checking, so port 465 is not supported.
 
 UI:
 - Home gets an "Up next" section with up to 3 to-read books and a Start button, to meet NFR-26.

@@ -20,7 +20,6 @@ class RateLimit:
 LOGIN_LIMIT = RateLimit(per_ip=30, per_email=10, window_seconds=300)
 REGISTER_LIMIT = RateLimit(per_ip=10, per_email=5, window_seconds=3600)
 FORGOT_PASSWORD_LIMIT = RateLimit(per_ip=10, per_email=5, window_seconds=3600)
-RESEND_VERIFICATION_LIMIT = RateLimit(per_ip=10, per_email=5, window_seconds=3600)
 # Someone with a stolen session could otherwise use this to guess the password.
 CHANGE_PASSWORD_LIMIT = RateLimit(per_ip=10, per_email=5, window_seconds=300)
 

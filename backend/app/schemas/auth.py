@@ -41,14 +41,6 @@ class ResetPasswordRequest(BaseModel):
     password: NewPassword
 
 
-class VerifyEmailRequest(BaseModel):
-    token: Annotated[str, Field(min_length=1, max_length=255)]
-
-
-class ResendVerificationRequest(BaseModel):
-    email: Email
-
-
 class TokenResponse(BaseModel):
     access_token: str
     token_type: Literal["bearer"] = "bearer"  # noqa: S105

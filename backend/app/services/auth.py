@@ -13,7 +13,6 @@ from app.core.errors import (
     InvalidCurrentPasswordError,
     InvalidRefreshTokenError,
     InvalidResetTokenError,
-    InvalidVerificationTokenError,
     NewPasswordSameError,
 )
 from app.core.security import (
@@ -35,7 +34,6 @@ logger = logging.getLogger(__name__)
 
 @dataclass(frozen=True)
 class AuthTokens:
-    user_id: int
     access_token: str
     refresh_token: str
 
@@ -44,7 +42,6 @@ def _issue_tokens(session: AsyncSession, user: User) -> AuthTokens:
     refresh = create_refresh_token(user.id, user.token_version)
     refresh_tokens.add(session, user.id, refresh.jti, refresh.expires_at)
     return AuthTokens(
-        user_id=user.id,
         access_token=create_access_token(user.id, user.token_version),
         refresh_token=refresh.token,
     )
@@ -146,27 +143,6 @@ async def change_password(session: AsyncSession, user: User, data: ChangePasswor
     tokens = _issue_tokens(session, user)
     await session.commit()
     return tokens
-
-
-async def find_user_id_for_verification(session: AsyncSession, email: str) -> int | None:
-    user = await users.get_by_email(session, email)
-    return user.id if user and not user.is_verified else None
-
-
-async def verify_email(session: AsyncSession, raw_token: str) -> None:
-    token = await auth_tokens.get_usable_for_update(
-        session, hash_url_token(raw_token), AuthTokenPurpose.VERIFY_EMAIL
-    )
-    if token is None:
-        raise InvalidVerificationTokenError()
-    user = await users.get_by_id(session, token.user_id)
-    if user is None:
-        raise InvalidVerificationTokenError()
-
-    token.used_at = datetime.now(UTC)
-    user.is_verified = True
-    await auth_tokens.delete_unused(session, user.id, AuthTokenPurpose.VERIFY_EMAIL)
-    await session.commit()
 
 
 async def reset_password(session: AsyncSession, data: ResetPasswordRequest) -> None:

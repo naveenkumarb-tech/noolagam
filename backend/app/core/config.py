@@ -18,7 +18,6 @@ class Settings(BaseSettings):
     access_token_minutes: int = 15
     refresh_token_days: int = 7
     reset_token_minutes: int = 30
-    verify_token_hours: int = 24
     bcrypt_rounds: int = 12
 
     cors_origins: Annotated[list[str], NoDecode] = []

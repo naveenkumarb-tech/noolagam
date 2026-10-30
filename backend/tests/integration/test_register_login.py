@@ -1,3 +1,5 @@
+from email.message import EmailMessage
+
 import pytest
 from httpx import AsyncClient
 from sqlalchemy import select
@@ -18,7 +20,6 @@ async def test_register_stores_the_user_with_a_hashed_password(
     user = (await session.execute(select(User))).scalar_one()
     assert user.name == NAME
     assert user.email == EMAIL
-    assert user.is_verified is False
     assert user.token_version == 0
     assert user.password_hash.startswith("$2b$")
     assert PASSWORD not in user.password_hash
@@ -104,3 +105,16 @@ async def test_login_with_a_very_long_password_is_refused_cleanly(client: AsyncC
     await register(client)
 
     assert_error(await login(client, password="x" * 100), 401, "INVALID_CREDENTIALS")
+
+
+@pytest.mark.parametrize("path", ["verify-email", "resend-verification"])
+async def test_email_verification_no_longer_exists(client: AsyncClient, path: str) -> None:
+    assert_error(
+        await client.post(f"/api/v1/auth/{path}", json={"token": "x", "email": EMAIL}), 404, "HTTP_404"
+    )
+
+
+async def test_registering_sends_no_email(client: AsyncClient, sent_emails: list[EmailMessage]) -> None:
+    await register(client)
+
+    assert sent_emails == []

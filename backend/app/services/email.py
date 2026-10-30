@@ -1,5 +1,6 @@
 import asyncio
 import smtplib
+import ssl
 from datetime import UTC, datetime, timedelta
 from email.message import EmailMessage
 from pathlib import Path
@@ -33,7 +34,8 @@ def send_message(message: EmailMessage) -> None:
     settings = get_settings()
     with smtplib.SMTP(settings.smtp_host, settings.smtp_port, timeout=10) as smtp:
         if settings.smtp_user:
-            smtp.starttls()
+            # Without a context, Python skips the certificate check, so the password could be intercepted.
+            smtp.starttls(context=ssl.create_default_context())
             smtp.login(settings.smtp_user, settings.smtp_password.get_secret_value())
         smtp.send_message(message)
 
@@ -72,25 +74,5 @@ async def deliver_password_reset_email(session: AsyncSession, user_id: int) -> N
         name=user.name,
         reset_url=_link("reset-password", raw_token),
         expires_minutes=minutes,
-    )
-    await asyncio.to_thread(send_message, message)
-
-
-async def deliver_verification_email(session: AsyncSession, user_id: int) -> None:
-    user = await users.get_by_id(session, user_id)
-    if user is None or user.is_verified:
-        return
-
-    hours = get_settings().verify_token_hours
-    raw_token = await _issue_link_token(
-        session, user.id, AuthTokenPurpose.VERIFY_EMAIL, timedelta(hours=hours)
-    )
-    message = build_message(
-        to=user.email,
-        subject="Verify your Noolagam email",
-        template="verify_email",
-        name=user.name,
-        verify_url=_link("verify-email", raw_token),
-        expires_hours=hours,
     )
     await asyncio.to_thread(send_message, message)

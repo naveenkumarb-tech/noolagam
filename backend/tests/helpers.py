@@ -29,20 +29,12 @@ async def refresh(client: AsyncClient) -> Response:
     return await client.post("/api/v1/auth/refresh")
 
 
-def _token_from(message: EmailMessage, path: str) -> str:
+def reset_token_from(message: EmailMessage) -> str:
     plain = message.get_body(("plain",))
     assert plain is not None
-    match = re.search(rf"/{path}\?token=([\w-]+)", plain.get_content())
+    match = re.search(r"/reset-password\?token=([\w-]+)", plain.get_content())
     assert match is not None
     return match.group(1)
-
-
-def reset_token_from(message: EmailMessage) -> str:
-    return _token_from(message, "reset-password")
-
-
-def verify_token_from(message: EmailMessage) -> str:
-    return _token_from(message, "verify-email")
 
 
 async def auth_headers(client: AsyncClient, email: str = EMAIL) -> dict[str, str]:

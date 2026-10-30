@@ -132,17 +132,6 @@ def queued_reset_emails(monkeypatch: pytest.MonkeyPatch) -> list[int]:
 
 
 @pytest.fixture(autouse=True)
-def queued_verification_emails(monkeypatch: pytest.MonkeyPatch) -> list[int]:
-    queued: list[int] = []
-    monkeypatch.setattr(
-        tasks.send_verification_email,
-        "apply_async",
-        lambda args, retry: queued.append(args[0]),
-    )
-    return queued
-
-
-@pytest.fixture(autouse=True)
 def queued_enrichments(monkeypatch: pytest.MonkeyPatch) -> list[int]:
     queued: list[int] = []
     monkeypatch.setattr(tasks.enrich_book, "apply_async", lambda args, retry: queued.append(args[0]))

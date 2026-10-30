@@ -10,7 +10,6 @@ from app.middleware.rate_limit import (
     FORGOT_PASSWORD_LIMIT,
     LOGIN_LIMIT,
     REGISTER_LIMIT,
-    RESEND_VERIFICATION_LIMIT,
     enforce_rate_limit,
 )
 from app.routers.tokens import REFRESH_COOKIE, REFRESH_COOKIE_PATH, token_response
@@ -19,13 +18,11 @@ from app.schemas.auth import (
     LoginRequest,
     MessageResponse,
     RegisterRequest,
-    ResendVerificationRequest,
     ResetPasswordRequest,
     TokenResponse,
-    VerifyEmailRequest,
 )
 from app.services import auth as auth_service
-from app.worker.tasks import enqueue_password_reset_email, enqueue_verification_email
+from app.worker.tasks import enqueue_password_reset_email
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -40,17 +37,10 @@ def _client_ip(request: Request) -> str:
 
 @router.post("/register", status_code=status.HTTP_201_CREATED)
 async def register(
-    data: RegisterRequest,
-    request: Request,
-    response: Response,
-    background_tasks: BackgroundTasks,
-    session: SessionDep,
-    redis: RedisDep,
+    data: RegisterRequest, request: Request, response: Response, session: SessionDep, redis: RedisDep
 ) -> TokenResponse:
     await enforce_rate_limit(redis, "register", REGISTER_LIMIT, _client_ip(request), data.email)
-    tokens = await auth_service.register(session, data)
-    background_tasks.add_task(enqueue_verification_email, tokens.user_id)
-    return token_response(response, tokens)
+    return token_response(response, await auth_service.register(session, data))
 
 
 @router.post("/login")
@@ -93,25 +83,3 @@ async def forgot_password(
 @router.post("/reset-password", status_code=status.HTTP_204_NO_CONTENT)
 async def reset_password(data: ResetPasswordRequest, session: SessionDep) -> None:
     await auth_service.reset_password(session, data)
-
-
-@router.post("/verify-email", status_code=status.HTTP_204_NO_CONTENT)
-async def verify_email(data: VerifyEmailRequest, session: SessionDep) -> None:
-    await auth_service.verify_email(session, data.token)
-
-
-@router.post("/resend-verification", status_code=status.HTTP_202_ACCEPTED)
-async def resend_verification(
-    data: ResendVerificationRequest,
-    request: Request,
-    background_tasks: BackgroundTasks,
-    session: SessionDep,
-    redis: RedisDep,
-) -> MessageResponse:
-    await enforce_rate_limit(
-        redis, "resend_verification", RESEND_VERIFICATION_LIMIT, _client_ip(request), data.email
-    )
-    user_id = await auth_service.find_user_id_for_verification(session, data.email)
-    if user_id is not None:
-        background_tasks.add_task(enqueue_verification_email, user_id)
-    return MessageResponse(message="If this email needs verifying, a new link is on its way.")

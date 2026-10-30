@@ -13,7 +13,6 @@ import { MyBooksPage } from "../pages/MyBooksPage";
 import { ProfilePage } from "../pages/ProfilePage";
 import { ResetPasswordPage } from "../pages/ResetPasswordPage";
 import { SignUpPage } from "../pages/SignUpPage";
-import { VerifyEmailPage } from "../pages/VerifyEmailPage";
 import { GuestRoute, ProtectedRoute } from "./guards";
 
 // Loaded only when opened, because the charting library is large and most visits never need it.
@@ -28,9 +27,8 @@ export function AppRoutes() {
         <Route path="/forgot-password" element={<ForgotPasswordPage />} />
       </Route>
 
-      {/* Opened from email links, so they work whether or not the user is logged in. */}
+      {/* Opened from an email link, so it works whether or not the user is logged in. */}
       <Route path="/reset-password" element={<ResetPasswordPage />} />
-      <Route path="/verify-email" element={<VerifyEmailPage />} />
 
       <Route element={<ProtectedRoute />}>
         <Route element={<AppLayout />}>

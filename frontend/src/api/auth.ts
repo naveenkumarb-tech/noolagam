@@ -21,7 +21,7 @@ export async function login(credentials: LoginRequest): Promise<TokenResponse> {
   return data;
 }
 
-// Registering also logs the user in: unverified users can use the app and see a "verify your email" banner.
+// Registering also logs the user in, so a new user goes straight to Home.
 export async function register(account: RegisterRequest): Promise<TokenResponse> {
   const { data } = await apiClient.post<TokenResponse>("/auth/register", account);
   return data;
@@ -37,12 +37,4 @@ export async function resetPassword(token: string, password: string): Promise<vo
 
 export async function logout(): Promise<void> {
   await apiClient.post("/auth/logout");
-}
-
-export async function verifyEmail(token: string): Promise<void> {
-  await apiClient.post("/auth/verify-email", { token });
-}
-
-export async function resendVerification(email: string): Promise<void> {
-  await apiClient.post("/auth/resend-verification", { email });
 }

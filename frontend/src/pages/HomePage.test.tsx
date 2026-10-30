@@ -2,7 +2,6 @@ import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { resendVerification } from "../api/auth";
 import {
   finishReading,
   getBookCounts,
@@ -14,11 +13,10 @@ import {
 } from "../api/books";
 import { getCurrentUser } from "../api/users";
 import { greeting } from "../features/home/HomeHeader";
-import { httpError, networkError } from "../test/httpError";
+import { networkError } from "../test/httpError";
 import { makeBook, renderWithProviders, SAMPLE_COUNTS, SAMPLE_USER } from "../test/renderWithProviders";
 import { HomePage } from "./HomePage";
 
-vi.mock("../api/auth", () => ({ resendVerification: vi.fn() }));
 vi.mock("../api/users", () => ({ getCurrentUser: vi.fn() }));
 vi.mock("../api/books", () => ({
   finishReading: vi.fn(),
@@ -222,40 +220,6 @@ describe("HomePage", () => {
     expect(screen.getByText("Priya")).toBeInTheDocument();
     expect(screen.getByRole("table")).toHaveTextContent("To read");
     expect(screen.getByRole("table")).toHaveTextContent("—");
-  });
-
-  it("shows no verification banner for a verified user", async () => {
-    renderWithProviders(<HomePage />);
-
-    await screen.findByRole("link", { name: "Ponniyin Selvan" });
-    await waitFor(() => expect(getCurrentUser).toHaveBeenCalled());
-    expect(screen.queryByText(/Please verify your email/)).not.toBeInTheDocument();
-  });
-
-  it("offers to resend the email to an unverified user", async () => {
-    vi.mocked(getCurrentUser).mockResolvedValue({ ...SAMPLE_USER, is_verified: false });
-    vi.mocked(resendVerification).mockResolvedValue();
-    const user = userEvent.setup();
-    renderWithProviders(<HomePage />);
-
-    expect(await screen.findByText(/Please verify your email/)).toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: "Resend" }));
-
-    expect(await screen.findByText(/We sent a new link to ravi@example.com/)).toBeInTheDocument();
-    expect(vi.mocked(resendVerification).mock.calls[0][0]).toBe("ravi@example.com");
-    expect(screen.queryByRole("button", { name: "Resend" })).not.toBeInTheDocument();
-  });
-
-  it("explains a failed resend and lets the user try again", async () => {
-    vi.mocked(getCurrentUser).mockResolvedValue({ ...SAMPLE_USER, is_verified: false });
-    vi.mocked(resendVerification).mockRejectedValue(httpError(429));
-    const user = userEvent.setup();
-    renderWithProviders(<HomePage />);
-
-    await user.click(await screen.findByRole("button", { name: "Resend" }));
-
-    expect(await screen.findByText(/Too many attempts/)).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Resend" })).toBeInTheDocument();
   });
 
   it("shows an error with a retry when a section fails to load", async () => {

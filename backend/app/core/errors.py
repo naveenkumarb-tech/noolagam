@@ -45,12 +45,6 @@ class InvalidResetTokenError(AppError):
     message = "This reset link has expired or has already been used"
 
 
-class InvalidVerificationTokenError(AppError):
-    status_code = 400
-    code = "INVALID_VERIFICATION_TOKEN"
-    message = "This verification link has expired or has already been used"
-
-
 class NotAuthenticatedError(AppError):
     status_code = 401
     code = "NOT_AUTHENTICATED"

@@ -48,4 +48,4 @@ export function makeBook(overrides: Partial<Book> = {}): Book {
 
 export const SAMPLE_COUNTS: BookCounts = { total: 84, to_read: 30, reading: 2, finished: 52, gifted: 17 };
 
-export const SAMPLE_USER: User = { id: 1, name: "Ravi", email: "ravi@example.com", is_verified: true };
+export const SAMPLE_USER: User = { id: 1, name: "Ravi", email: "ravi@example.com" };

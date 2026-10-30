@@ -2,14 +2,14 @@ import { screen, waitFor } from "@testing-library/react";
 import userEvent, { type UserEvent } from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { logout, resendVerification } from "../api/auth";
+import { logout } from "../api/auth";
 import { tokenStorage } from "../api/tokenStorage";
 import { changePassword, getCurrentUser, updateProfile } from "../api/users";
 import { httpError, networkError } from "../test/httpError";
 import { renderWithProviders, SAMPLE_USER } from "../test/renderWithProviders";
 import { ProfilePage } from "./ProfilePage";
 
-vi.mock("../api/auth", () => ({ logout: vi.fn(), resendVerification: vi.fn() }));
+vi.mock("../api/auth", () => ({ logout: vi.fn() }));
 vi.mock("../api/users", () => ({ changePassword: vi.fn(), getCurrentUser: vi.fn(), updateProfile: vi.fn() }));
 
 const CURRENT = "current-password";
@@ -44,8 +44,7 @@ describe("ProfilePage", () => {
 
     expect(await screen.findByLabelText("Name")).toHaveValue("Ravi");
     expect(screen.getByText("ravi@example.com")).toBeInTheDocument();
-    expect(screen.getByText("Verified")).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Resend email" })).not.toBeInTheDocument();
+    expect(screen.queryByText(/verified/i)).not.toBeInTheDocument();
   });
 
   it("explains when the profile cannot be loaded", async () => {
@@ -110,21 +109,6 @@ describe("ProfilePage", () => {
 
       expect(await screen.findByRole("alert")).toHaveTextContent("We couldn't reach the server");
       expect(name).toHaveValue("Ravi Kumar");
-    });
-  });
-
-  describe("email verification", () => {
-    it("offers to resend for an unverified account", async () => {
-      vi.mocked(getCurrentUser).mockResolvedValue({ ...SAMPLE_USER, is_verified: false });
-      vi.mocked(resendVerification).mockResolvedValue();
-      const user = userEvent.setup();
-      renderWithProviders(<ProfilePage />);
-
-      expect(await screen.findByText("Not verified")).toBeInTheDocument();
-      await user.click(screen.getByRole("button", { name: "Resend email" }));
-
-      expect(await screen.findByText(/a new link is on its way/)).toBeInTheDocument();
-      expect(vi.mocked(resendVerification).mock.calls[0][0]).toBe(SAMPLE_USER.email);
     });
   });
 

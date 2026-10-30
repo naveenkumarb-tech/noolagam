@@ -8,14 +8,13 @@ from app.db.base import Base
 
 
 class AuthTokenPurpose(StrEnum):
-    VERIFY_EMAIL = "verify_email"
     RESET_PASSWORD = "reset_password"  # noqa: S105
 
 
 class AuthToken(Base):
     __tablename__ = "auth_tokens"
     __table_args__ = (
-        CheckConstraint("purpose IN ('verify_email', 'reset_password')", name="purpose"),
+        CheckConstraint("purpose IN ('reset_password')", name="purpose"),
         Index(None, "token_hash"),
         Index(None, "user_id", "purpose"),
     )
