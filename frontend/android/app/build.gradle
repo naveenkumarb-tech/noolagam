@@ -8,7 +8,7 @@ android {
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 1
-        versionName "1.0"
+        versionName "0.1.0"
         // Plain http:// is allowed only when the app was built to use an http:// API, for testing on Wi-Fi.
         manifestPlaceholders = [usesCleartextTraffic: (System.getenv("VITE_API_URL") ?: "").startsWith("http://") ? "true" : "false"]
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
