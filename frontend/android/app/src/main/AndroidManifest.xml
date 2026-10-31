@@ -39,4 +39,12 @@
     <!-- Permissions -->
 
     <uses-permission android:name="android.permission.INTERNET" />
+
+    <!-- Since Android 11 an app can't see a camera app unless it says it wants one, and "Take photo"
+         would open the gallery instead. -->
+    <queries>
+        <intent>
+            <action android:name="android.media.action.IMAGE_CAPTURE" />
+        </intent>
+    </queries>
 </manifest>

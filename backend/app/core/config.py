@@ -23,6 +23,8 @@ class Settings(BaseSettings):
     cors_origins: Annotated[list[str], NoDecode] = []
     frontend_url: str
 
+    media_dir: str = "/data/uploads"
+
     cookie_secure: bool = True
     cookie_samesite: Literal["lax", "strict", "none"] = "lax"
 

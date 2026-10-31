@@ -96,6 +96,18 @@ class BookLookupUnavailableError(AppError):
     message = "Book lookup is not available right now"
 
 
+class InvalidImageError(AppError):
+    status_code = 422
+    code = "INVALID_IMAGE"
+    message = "Choose a JPEG, PNG or WebP photo"
+
+
+class ImageTooLargeError(AppError):
+    status_code = 413
+    code = "IMAGE_TOO_LARGE"
+    message = "That photo is too large. Choose one under 15 MB"
+
+
 class RateLimitedError(AppError):
     status_code = 429
     code = "RATE_LIMITED"

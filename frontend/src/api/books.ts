@@ -132,6 +132,13 @@ export async function updateBook(bookId: number, changes: BookChanges): Promise<
   return data;
 }
 
+export async function uploadCover(bookId: number, photo: File): Promise<Book> {
+  const form = new FormData();
+  form.append("photo", photo);
+  const { data } = await apiClient.post<Book>(`/books/${bookId}/cover`, form);
+  return data;
+}
+
 export async function deleteBook(bookId: number): Promise<void> {
   await apiClient.delete(`/books/${bookId}`);
 }

@@ -10,7 +10,8 @@ from app.core.redis import create_redis
 from app.db.session import engine
 from app.middleware.error_handlers import register_error_handlers
 from app.middleware.request_id import RequestIdMiddleware
-from app.routers import auth, books, health, search, stats, users
+from app.middleware.upload_limit import RequestSizeLimitMiddleware
+from app.routers import auth, books, health, media, search, stats, users
 
 
 @asynccontextmanager
@@ -26,6 +27,8 @@ def create_app() -> FastAPI:
     logging.basicConfig(level=settings.log_level)
 
     app = FastAPI(title="Noolagam API", version="0.1.0", lifespan=lifespan)
+    # Added first so that it runs inside CORS: the app can only read an error that has CORS headers.
+    app.add_middleware(RequestSizeLimitMiddleware)
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.cors_origins,
@@ -41,6 +44,7 @@ def create_app() -> FastAPI:
     app.include_router(auth.router, prefix="/api/v1")
     app.include_router(users.router, prefix="/api/v1")
     app.include_router(books.router, prefix="/api/v1")
+    app.include_router(media.router, prefix="/api/v1")
     app.include_router(search.router, prefix="/api/v1")
     app.include_router(stats.router, prefix="/api/v1")
     return app

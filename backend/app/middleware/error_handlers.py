@@ -12,7 +12,7 @@ from app.middleware.request_id import REQUEST_ID_HEADER
 logger = logging.getLogger(__name__)
 
 
-def _error_response(
+def error_response(
     status_code: int,
     code: str,
     message: str,
@@ -32,7 +32,7 @@ def _error_response(
 
 async def _handle_app_error(_: Request, error: Exception) -> JSONResponse:
     assert isinstance(error, AppError)  # noqa: S101
-    return _error_response(error.status_code, error.code, error.message, error.headers)
+    return error_response(error.status_code, error.code, error.message, error.headers)
 
 
 async def _handle_validation_error(_: Request, error: Exception) -> JSONResponse:
@@ -45,12 +45,12 @@ async def _handle_validation_error(_: Request, error: Exception) -> JSONResponse
         }
         for item in error.errors()
     ]
-    return _error_response(422, "VALIDATION_ERROR", "Please check the submitted values", details=details)
+    return error_response(422, "VALIDATION_ERROR", "Please check the submitted values", details=details)
 
 
 async def _handle_http_exception(_: Request, error: Exception) -> JSONResponse:
     assert isinstance(error, HTTPException)  # noqa: S101
-    return _error_response(
+    return error_response(
         error.status_code,
         f"HTTP_{error.status_code}",
         str(error.detail),
@@ -60,7 +60,7 @@ async def _handle_http_exception(_: Request, error: Exception) -> JSONResponse:
 
 async def _handle_unexpected_error(_: Request, error: Exception) -> JSONResponse:
     logger.error("Unhandled error", exc_info=error)
-    return _error_response(500, "INTERNAL_ERROR", "Something went wrong")
+    return error_response(500, "INTERNAL_ERROR", "Something went wrong")
 
 
 def register_error_handlers(app: FastAPI) -> None:

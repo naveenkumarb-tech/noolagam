@@ -237,4 +237,20 @@ describe("MyBooksPage", () => {
 
     expect(await screen.findByRole("link", { name: /Wings of Fire/ })).toBeInTheDocument();
   });
+
+  it("shows how long a book took on its row, unless the dates are the same", async () => {
+    vi.mocked(listBooks).mockResolvedValue({
+      items: [
+        makeBook({ id: 1, title: "Twelve days", status: "finished", started_at: "2026-10-01", finished_at: "2026-10-13" }),
+        makeBook({ id: 2, title: "Same day", status: "finished", started_at: "2026-10-01", finished_at: "2026-10-01" }),
+      ],
+      total: 2,
+      page: 1,
+      per_page: 20,
+    });
+    renderWithProviders(<MyBooksPage />);
+
+    expect(await screen.findByRole("link", { name: /Twelve days/ })).toHaveTextContent("Read in 12 days");
+    expect(screen.getByRole("link", { name: /Same day/ })).not.toHaveTextContent(/Read in|same day$/);
+  });
 });

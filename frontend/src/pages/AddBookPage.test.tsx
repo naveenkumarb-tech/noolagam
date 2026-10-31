@@ -2,13 +2,13 @@ import { screen, waitFor } from "@testing-library/react";
 import userEvent, { type UserEvent } from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { createBook, lookupBook, type BookLookup } from "../api/books";
+import { createBook, lookupBook, uploadCover, type BookLookup } from "../api/books";
 import { localDate } from "../features/books/localDate";
 import { httpError, networkError } from "../test/httpError";
 import { makeBook, renderWithProviders } from "../test/renderWithProviders";
 import { AddBookPage } from "./AddBookPage";
 
-vi.mock("../api/books", () => ({ createBook: vi.fn(), lookupBook: vi.fn() }));
+vi.mock("../api/books", () => ({ createBook: vi.fn(), lookupBook: vi.fn(), uploadCover: vi.fn() }));
 
 const ISBN = "9780735211292";
 const FOUND: BookLookup = {
@@ -42,6 +42,7 @@ describe("AddBookPage", () => {
   beforeEach(() => {
     vi.resetAllMocks();
     vi.mocked(createBook).mockImplementation(async (book) => makeBook({ title: book.title }));
+    vi.mocked(uploadCover).mockImplementation(async (id) => makeBook({ id }));
   });
 
   it("requires a title and an author", async () => {
@@ -326,6 +327,185 @@ describe("AddBookPage", () => {
 
       expect(await screen.findByText("Enter a valid 10 or 13 digit ISBN")).toBeInTheDocument();
       expect(createBook).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("cover photo", () => {
+    const photoFile = () => new File(["photo"], "cover.jpg", { type: "image/jpeg" });
+
+    it("uploads the chosen photo to the new book", async () => {
+      const user = userEvent.setup();
+      const photo = photoFile();
+      vi.mocked(createBook).mockResolvedValue(makeBook({ id: 7, title: "Wings of Fire" }));
+      renderWithProviders(<AddBookPage />);
+
+      await fillRequired(user);
+      await user.upload(screen.getByLabelText("Photo from files"), photo);
+      expect(await screen.findByText(/New photo chosen/)).toBeInTheDocument();
+      await save(user);
+
+      await waitFor(() => expect(uploadCover).toHaveBeenCalled());
+      const [bookId, uploaded] = vi.mocked(uploadCover).mock.calls[0];
+      expect(bookId).toBe(7);
+      expect(uploaded.name).toBe("cover.jpg");
+      expect(uploaded.type).toBe("image/jpeg");
+      expect(await uploaded.text()).toBe("photo");
+      expect(await screen.findByText(/is on your shelf\. Add another below/)).toBeInTheDocument();
+      expect(screen.queryByText(/New photo chosen/)).not.toBeInTheDocument();
+      expect(screen.getByLabelText("Title")).toHaveValue("");
+    });
+
+    it("can take the photo with the camera", async () => {
+      const user = userEvent.setup();
+      const photo = photoFile();
+      vi.mocked(createBook).mockResolvedValue(makeBook({ id: 7 }));
+      renderWithProviders(<AddBookPage />);
+
+      const camera = screen.getByLabelText("Photo from camera");
+      expect(camera).toHaveAttribute("capture", "environment");
+      await fillRequired(user);
+      await user.upload(camera, photo);
+      await screen.findByText(/New photo chosen/);
+      await save(user);
+
+      await waitFor(() => expect(uploadCover).toHaveBeenCalled());
+      expect(vi.mocked(uploadCover).mock.calls[0][1].name).toBe(photo.name);
+    });
+
+    it("opens the camera and the file chooser from their buttons", async () => {
+      const user = userEvent.setup();
+      renderWithProviders(<AddBookPage />);
+      const openCamera = vi.spyOn(screen.getByLabelText<HTMLInputElement>("Photo from camera"), "click");
+      const openFiles = vi.spyOn(screen.getByLabelText<HTMLInputElement>("Photo from files"), "click");
+
+      await user.click(screen.getByRole("button", { name: "Take photo" }));
+      await user.click(screen.getByRole("button", { name: "Choose photo" }));
+
+      expect(openCamera).toHaveBeenCalledOnce();
+      expect(openFiles).toHaveBeenCalledOnce();
+    });
+
+    it("doesn't upload anything when no photo is chosen", async () => {
+      const user = userEvent.setup();
+      renderWithProviders(<AddBookPage />);
+
+      await fillRequired(user);
+      await save(user);
+
+      await waitFor(() => expect(createBook).toHaveBeenCalled());
+      expect(uploadCover).not.toHaveBeenCalled();
+    });
+
+    it("forgets a photo that was removed", async () => {
+      const user = userEvent.setup();
+      renderWithProviders(<AddBookPage />);
+
+      await fillRequired(user);
+      await user.upload(screen.getByLabelText("Photo from files"), photoFile());
+      await user.click(await screen.findByRole("button", { name: "Remove photo" }));
+      await save(user);
+
+      await waitFor(() => expect(createBook).toHaveBeenCalled());
+      expect(uploadCover).not.toHaveBeenCalled();
+    });
+
+    it("refuses a file type the server won't accept", async () => {
+      const user = userEvent.setup({ applyAccept: false });
+      renderWithProviders(<AddBookPage />);
+
+      await user.upload(
+        screen.getByLabelText("Photo from files"),
+        new File(["x"], "scan.pdf", { type: "application/pdf" }),
+      );
+
+      expect(screen.getByRole("alert")).toHaveTextContent("Choose a JPEG, PNG or WebP photo");
+      expect(screen.queryByRole("button", { name: "Remove photo" })).not.toBeInTheDocument();
+    });
+
+    it("refuses a photo that is too large, and keeps the one already chosen", async () => {
+      const user = userEvent.setup();
+      renderWithProviders(<AddBookPage />);
+      await user.upload(screen.getByLabelText("Photo from files"), photoFile());
+      await screen.findByRole("button", { name: "Remove photo" });
+
+      const huge = photoFile();
+      Object.defineProperty(huge, "size", { value: 16 * 1024 * 1024 });
+      await user.upload(screen.getByLabelText("Photo from files"), huge);
+
+      expect(screen.getByRole("alert")).toHaveTextContent("under 15 MB");
+      expect(screen.getByRole("button", { name: "Remove photo" })).toBeInTheDocument();
+    });
+
+    it("leaves unknown file types for the server to judge, as some galleries don't report one", async () => {
+      const user = userEvent.setup({ applyAccept: false });
+      renderWithProviders(<AddBookPage />);
+
+      await user.upload(screen.getByLabelText("Photo from files"), new File(["x"], "photo"));
+
+      expect(await screen.findByRole("button", { name: "Remove photo" })).toBeInTheDocument();
+      expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    });
+
+    it("says so when the phone can't hand over the photo", async () => {
+      const user = userEvent.setup();
+      const unreadable = photoFile();
+      unreadable.arrayBuffer = () => Promise.reject(new DOMException("Not readable", "NotReadableError"));
+      renderWithProviders(<AddBookPage />);
+
+      await user.upload(screen.getByLabelText("Photo from files"), unreadable);
+
+      expect(await screen.findByRole("alert")).toHaveTextContent("We couldn't read that photo");
+      expect(screen.queryByRole("button", { name: "Remove photo" })).not.toBeInTheDocument();
+    });
+
+    it("keeps the book when the photo fails, says so, and doesn't offer to save it twice", async () => {
+      const user = userEvent.setup();
+      vi.mocked(createBook).mockResolvedValue(makeBook({ id: 7, title: "Wings of Fire" }));
+      vi.mocked(uploadCover).mockRejectedValue(httpError(422, "Choose a JPEG, PNG or WebP photo"));
+      renderWithProviders(<AddBookPage />);
+
+      await fillRequired(user);
+      await user.upload(screen.getByLabelText("Photo from files"), photoFile());
+      await screen.findByText(/New photo chosen/);
+      await save(user);
+
+      expect(await screen.findByText(/but its photo wasn't saved/)).toHaveTextContent(
+        "Choose a JPEG, PNG or WebP photo. Try again from Edit",
+      );
+      expect(screen.getByRole("link", { name: "Try again from Edit" })).toHaveAttribute("href", "/books/7/edit");
+      expect(screen.getByLabelText("Title")).toHaveValue("");
+      expect(createBook).toHaveBeenCalledOnce();
+    });
+
+    it("doesn't try to upload when the book itself can't be saved", async () => {
+      const user = userEvent.setup();
+      vi.mocked(createBook).mockRejectedValue(networkError());
+      renderWithProviders(<AddBookPage />);
+
+      await fillRequired(user);
+      await user.upload(screen.getByLabelText("Photo from files"), photoFile());
+      await screen.findByText(/New photo chosen/);
+      await save(user);
+
+      await screen.findByRole("alert");
+      expect(uploadCover).not.toHaveBeenCalled();
+      expect(screen.getByRole("button", { name: "Remove photo" })).toBeInTheDocument();
+    });
+
+    it("sends the looked-up cover too, so the book keeps one if the photo fails", async () => {
+      const user = userEvent.setup();
+      vi.mocked(lookupBook).mockResolvedValue(FOUND);
+      vi.mocked(createBook).mockResolvedValue(makeBook({ id: 7 }));
+      renderWithProviders(<AddBookPage />);
+
+      await lookUp(user);
+      await screen.findByText(/Found:/);
+      await user.upload(screen.getByLabelText("Photo from files"), photoFile());
+      await screen.findByText(/New photo chosen/);
+      await save(user);
+
+      await waitFor(() => expect(uploadCover).toHaveBeenCalled());
+      expect(savedBook().cover_url).toBe(FOUND.cover_url);
     });
   });
 });

@@ -14,8 +14,11 @@ import {
   startReading,
   updateBook,
   updateProgress,
+  uploadCover,
+  type Book,
   type BookChanges,
   type BookListParams,
+  type NewBook,
 } from "../../api/books";
 import { localDate } from "./localDate";
 
@@ -72,9 +75,32 @@ function useInvalidateBooks() {
   return () => queryClient.invalidateQueries({ queryKey: [BOOKS_KEY] });
 }
 
+export type SavedBook = {
+  book: Book;
+  /** The book is saved either way, so a failed photo isn't a failed save: trying again would add it twice. */
+  photoError: unknown;
+};
+
+async function createBookWithPhoto({ book, photo }: { book: NewBook; photo: File | null }): Promise<SavedBook> {
+  const saved = await createBook(book);
+  if (!photo) {
+    return { book: saved, photoError: null };
+  }
+  try {
+    return { book: await uploadCover(saved.id, photo), photoError: null };
+  } catch (photoError) {
+    return { book: saved, photoError };
+  }
+}
+
 export function useCreateBook() {
   const invalidateBooks = useInvalidateBooks();
-  return useMutation({ mutationFn: createBook, onSuccess: invalidateBooks });
+  return useMutation({ mutationFn: createBookWithPhoto, onSuccess: invalidateBooks });
+}
+
+export function useUploadCover(bookId: number) {
+  const invalidateBooks = useInvalidateBooks();
+  return useMutation({ mutationFn: (photo: File) => uploadCover(bookId, photo), onSuccess: invalidateBooks });
 }
 
 export function useStartReading() {

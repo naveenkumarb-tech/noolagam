@@ -12,6 +12,7 @@ HEALTHCHECK --interval=10s --timeout=3s --start-period=20s --retries=5 \
 FROM base AS dev
 RUN pip install --no-cache-dir ".[dev]"
 COPY . .
+RUN mkdir -p /data/uploads && chown app /data/uploads
 USER app
 
 FROM base AS prod
@@ -19,5 +20,6 @@ RUN pip install --no-cache-dir .
 COPY alembic.ini .
 COPY alembic ./alembic
 COPY app ./app
+RUN mkdir -p /data/uploads && chown app /data/uploads
 USER app
 CMD ["sh", "-c", "alembic upgrade head && exec gunicorn app.main:app -k uvicorn_worker.UvicornWorker -w 2 -b 0.0.0.0:8000"]

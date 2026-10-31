@@ -3,12 +3,12 @@ import userEvent from "@testing-library/user-event";
 import { Route, Routes } from "react-router";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { getBook, updateBook, type Book } from "../api/books";
+import { getBook, updateBook, uploadCover, type Book } from "../api/books";
 import { httpError } from "../test/httpError";
 import { makeBook, renderWithProviders } from "../test/renderWithProviders";
 import { EditBookPage } from "./EditBookPage";
 
-vi.mock("../api/books", () => ({ getBook: vi.fn(), updateBook: vi.fn() }));
+vi.mock("../api/books", () => ({ getBook: vi.fn(), updateBook: vi.fn(), uploadCover: vi.fn() }));
 
 function renderPage(book: Partial<Book> = {}) {
   vi.mocked(getBook).mockResolvedValue(makeBook(book));
@@ -172,5 +172,72 @@ describe("EditBookPage", () => {
     );
 
     expect(await screen.findByText("Book not found")).toBeInTheDocument();
+  });
+
+  describe("cover photo", () => {
+    const photo = new File(["photo"], "cover.jpg", { type: "image/jpeg" });
+
+    it("shows the current cover", async () => {
+      renderPage({ cover_url: "/api/v1/media/covers/abc.jpg" });
+
+      await screen.findByLabelText("Title");
+      expect(document.querySelector("img")).toHaveAttribute("src", "/api/v1/media/covers/abc.jpg");
+    });
+
+    it("uploads a new photo with the changes, then returns to the book", async () => {
+      const user = userEvent.setup();
+      vi.mocked(uploadCover).mockResolvedValue(makeBook());
+      renderPage();
+
+      await screen.findByLabelText("Title");
+      await user.upload(screen.getByLabelText("Photo from files"), photo);
+      await screen.findByText(/New photo chosen/);
+      await save(user);
+
+      expect(await screen.findByText("Book screen")).toBeInTheDocument();
+      expect(updateBook).toHaveBeenCalled();
+      const [bookId, uploaded] = vi.mocked(uploadCover).mock.calls[0];
+      expect(bookId).toBe(1);
+      expect(uploaded.name).toBe(photo.name);
+    });
+
+    it("doesn't upload anything when no photo is chosen", async () => {
+      const user = userEvent.setup();
+      renderPage();
+
+      await screen.findByLabelText("Title");
+      await save(user);
+
+      expect(await screen.findByText("Book screen")).toBeInTheDocument();
+      expect(uploadCover).not.toHaveBeenCalled();
+    });
+
+    it("stays on the page and explains when the photo fails", async () => {
+      const user = userEvent.setup();
+      vi.mocked(uploadCover).mockRejectedValue(httpError(413, "That photo is too large. Choose one under 15 MB"));
+      renderPage();
+
+      await screen.findByLabelText("Title");
+      await user.upload(screen.getByLabelText("Photo from files"), photo);
+      await screen.findByText(/New photo chosen/);
+      await save(user);
+
+      expect(await screen.findByText(/Your changes are saved, but the photo isn't/)).toHaveTextContent("under 15 MB");
+      expect(screen.queryByText("Book screen")).not.toBeInTheDocument();
+    });
+
+    it("doesn't upload if the changes can't be saved", async () => {
+      const user = userEvent.setup();
+      vi.mocked(updateBook).mockRejectedValue(httpError(500));
+      renderPage();
+
+      await screen.findByLabelText("Title");
+      await user.upload(screen.getByLabelText("Photo from files"), photo);
+      await screen.findByText(/New photo chosen/);
+      await save(user);
+
+      await screen.findByRole("alert");
+      expect(uploadCover).not.toHaveBeenCalled();
+    });
   });
 });

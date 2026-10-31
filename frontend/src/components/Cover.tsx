@@ -18,6 +18,11 @@ type CoverProps = {
   showTitle?: boolean;
 };
 
+/** Uploaded photos are served by the API, which in the Android app isn't at the page's own address. */
+function imageSource(coverUrl: string): string {
+  return coverUrl.startsWith("/") ? `${import.meta.env.VITE_API_URL ?? ""}${coverUrl}` : coverUrl;
+}
+
 export function Cover({ title, coverUrl, sizeClass, showTitle = true }: CoverProps) {
   const [failedUrl, setFailedUrl] = useState<string | null>(null);
 
@@ -34,7 +39,7 @@ export function Cover({ title, coverUrl, sizeClass, showTitle = true }: CoverPro
       )}
       {coverUrl && coverUrl !== failedUrl && (
         <img
-          src={coverUrl}
+          src={imageSource(coverUrl)}
           alt=""
           onError={() => setFailedUrl(coverUrl)}
           className="absolute inset-0 size-full object-cover"

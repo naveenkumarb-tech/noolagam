@@ -231,4 +231,18 @@ describe("ProfilePage", () => {
       await waitFor(() => expect(tokenStorage.getAccessToken()).toBeNull());
     });
   });
+
+  it("describes the app, its version, developer and copyright", async () => {
+    renderWithProviders(<ProfilePage />);
+
+    expect(await screen.findByRole("heading", { name: "About" })).toBeInTheDocument();
+    expect(screen.getByText("Version").nextElementSibling?.textContent).toMatch(/^\d+\.\d+\.\d+$/);
+    expect(screen.getByText("Developed by").nextElementSibling).toHaveTextContent("Naveen Kumar B");
+    expect(screen.getByText(/^Track the books you own/)).toBeInTheDocument();
+    expect(screen.getByText("© 2026 Naveen Kumar B. All rights reserved.")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "connectwithnaveenkumarb@gmail.com" })).toHaveAttribute(
+      "href",
+      "mailto:connectwithnaveenkumarb@gmail.com",
+    );
+  });
 });

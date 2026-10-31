@@ -25,7 +25,7 @@ export function HomeHeader() {
     <header className="flex flex-wrap items-center justify-between gap-4">
       <div className="flex flex-col gap-0.5">
         <span className="text-sm font-medium text-text-secondary">{greeting(new Date().getHours())}</span>
-        <h1 className="m-0 text-[26px] font-extrabold tracking-[-0.5px] lg:text-[30px]">Your bookshelf</h1>
+        <h1 className="m-0 text-[26px] font-extrabold tracking-[-0.5px] lg:text-[30px]">Noolagam</h1>
       </div>
 
       <div className="flex items-center gap-2.5 lg:hidden">

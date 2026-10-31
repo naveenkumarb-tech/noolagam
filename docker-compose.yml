@@ -59,6 +59,9 @@ services:
     command: >
       sh -c "alembic upgrade head &&
       exec uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload --reload-dir app --proxy-headers"
+    volumes:
+      - ./backend:/app
+      - uploads:/data/uploads
     ports:
       - "8000:8000"
     depends_on:
@@ -97,3 +100,4 @@ services:
 
 volumes:
   postgres_data:
+  uploads:

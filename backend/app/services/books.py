@@ -1,3 +1,4 @@
+import asyncio
 from collections.abc import Sequence
 from datetime import UTC, date, datetime, timedelta
 
@@ -24,6 +25,7 @@ from app.schemas.book import (
     StartReadingRequest,
     UpdateProgressRequest,
 )
+from app.services import cover_files
 from app.services.cache import invalidate_stats
 
 
@@ -135,8 +137,21 @@ async def update_book(
 
 
 async def delete_book(session: AsyncSession, redis: Redis, user_id: int, book_id: int) -> None:
-    await books.delete(session, await get_book(session, user_id, book_id))
+    book = await get_book(session, user_id, book_id)
+    cover_url = book.cover_url
+    await books.delete(session, book)
     await _save(session, redis, user_id)
+    await asyncio.to_thread(cover_files.remove, cover_url)
+
+
+async def set_book_cover(session: AsyncSession, user_id: int, book_id: int, photo: bytes) -> Book:
+    """Saves the new photo before touching the book, so a failure leaves the old cover in place."""
+    book = await get_book(session, user_id, book_id)
+    previous_url = book.cover_url
+    book.cover_url = await asyncio.to_thread(cover_files.save, photo)
+    await session.commit()
+    await asyncio.to_thread(cover_files.remove, previous_url)
+    return book
 
 
 async def reset_book(session: AsyncSession, redis: Redis, user_id: int, book_id: int) -> Book:

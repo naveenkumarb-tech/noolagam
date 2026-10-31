@@ -6,7 +6,7 @@ Noolagam (நூலகம்) means "library" in Tamil. Each person gets a priva
 
 Built with FastAPI, PostgreSQL, Redis, Celery and React. The same React code runs as a website and as an Android app, built with Capacitor.
 
-> **Status:** every feature below works locally on the web and on Android, with 297 backend tests (96% coverage) and 207 frontend tests. There is no live demo yet, so the Android app needs a backend running on the same Wi-Fi. CI and a production frontend image are still to come: see [Roadmap](#roadmap).
+> **Status:** every feature below works locally on the web and on Android, with 333 backend tests (97% coverage) and 242 frontend tests. There is no live demo yet, so the Android app needs a backend running on the same Wi-Fi. CI and a production frontend image are still to come: see [Roadmap](#roadmap).
 
 ## Screenshots
 
@@ -29,9 +29,10 @@ They also adapt to a laptop:
 
 - **Accounts:** sign up, log in, stay logged in across reloads, forgotten password by email, change password, edit profile.
 - **Your library:** add, edit and delete books, and record who gifted each one.
+- **Cover photos:** take a photo or choose one when adding or editing a book. It's resized and turned upright, and hidden data such as its GPS location is removed.
 - **ISBN lookup:** fill in a book's details from [Open Library](https://openlibrary.org) before saving it.
 - **Automatic details:** a background job looks for anything still missing after a book is saved, retrying if Open Library is down.
-- **Reading flow:** start a book, update your page, mark it finished with a 1–5 rating, and keep private notes. Several books can be in progress at once.
+- **Reading flow:** start a book, update your page, mark it finished with a 1–5 rating, keep private notes, and see how many days each book took. Several books can be in progress at once.
 - **Finding books:** ranked search across title, author and description, including Tamil text, plus filters, sorting and infinite scroll.
 - **Stats:** books finished, pages read and average days per book for any year, with a monthly chart, top authors and who gifted you the most.
 - **Privacy:** every book query is limited to the logged-in user, and another user's book returns 404.
@@ -43,6 +44,7 @@ flowchart LR
     client["Browser or Android app<br/>React + TypeScript"] -->|"/api"| api["FastAPI<br/>routers → services → repositories"]
     api --> db[("PostgreSQL<br/>data and search index")]
     api --> redis[("Redis<br/>rate limits, stats cache, job queue")]
+    api --> photos[("Disk volume<br/>uploaded photos")]
     api -->|ISBN lookup| ol["Open Library"]
     redis -->|jobs| worker["Celery worker"]
     worker --> db
@@ -112,7 +114,7 @@ erDiagram
 
 | Area | Tools |
 |---|---|
-| **Backend** | Python 3.12, FastAPI, SQLAlchemy 2.0 (async) with asyncpg, Alembic, Pydantic v2 |
+| **Backend** | Python 3.12, FastAPI, SQLAlchemy 2.0 (async) with asyncpg, Alembic, Pydantic v2, Pillow |
 | **Data** | PostgreSQL 16 with `tsvector` full-text search, Redis |
 | **Background jobs** | Celery, Jinja2 email templates, httpx |
 | **Auth** | JWT access and refresh tokens (PyJWT), bcrypt |
@@ -195,6 +197,7 @@ Everything is under `/api/v1`. Full details are in the [Swagger docs](http://loc
 | POST | `/users/me/change-password` | Change your password and log out other devices |
 | GET, POST | `/books` | List books, or add one |
 | GET, PATCH, DELETE | `/books/{id}` | Read, edit or delete a book |
+| POST | `/books/{id}/cover` | Upload a cover photo (JPEG, PNG or WebP, up to 15 MB) |
 | POST | `/books/{id}/start` | Start reading |
 | POST | `/books/{id}/progress` | Update the current page |
 | POST | `/books/{id}/finish` | Mark as finished, with an optional rating |
@@ -270,6 +273,8 @@ docker run --rm --user "$(id -u):$(id -g)" -e HOME=/tmp -v "$PWD/frontend":/app 
 
 ## Design decisions
 
+**Uploaded photos can't be trusted.** Each one is rebuilt as a new JPEG, which rejects anything that isn't really an image, removes hidden data such as GPS location, and leaves nothing that a browser could run. Files get random names, so a user's filename never reaches the disk. An oversized request is refused before any of it is read, because FastAPI would otherwise save the whole form to disk before checking the login. A browser's `<img>` can't send a login token, so photos are served without a login and the random, unguessable name is what keeps them private.
+
 **Layered backend.** Keeping HTTP, business rules and database queries apart means rules such as "a rating is only allowed on a finished book" live in one place, and every book query can be limited to the current user.
 
 **Token security**
@@ -297,6 +302,7 @@ This hasn't been deployed yet. When it is, it will need:
 - **Backend:** `backend/Dockerfile` has a `prod` target that runs Gunicorn with Uvicorn workers and applies migrations on start. Services such as Render, Railway or AWS EC2 would work, with managed PostgreSQL and Redis.
 - **Worker:** a second process running the same image: `celery -A app.worker.celery_app worker`.
 - **Frontend and API on one origin:** browsers can block the refresh cookie across different sites, so the plan is for Nginx to serve the app and proxy `/api`.
+- **Uploaded photos:** `MEDIA_DIR` must be on storage that survives a restart. Many hosts have temporary disks, so these need a persistent disk or a move to object storage such as S3. With more than one server, they must also share that storage.
 - **Settings:** see `backend/.env.example`. In production, the app refuses to start with insecure cookies or the development JWT secret.
 - **HTTPS and real email**, with `FRONTEND_URL` set to the public address so that reset links work.
 

@@ -1,4 +1,5 @@
 import { zodResolver } from "@hookform/resolvers/zod";
+import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 
@@ -10,9 +11,10 @@ import { FormError } from "../../components/FormError";
 import { TextAreaField } from "../../components/TextAreaField";
 import { TextField } from "../../components/TextField";
 import { bookFields } from "./addBookSchema";
+import { CoverPhotoPicker } from "./CoverPhotoPicker";
 import { normalizeIsbn } from "./isbn";
 import { localDate } from "./localDate";
-import { useUpdateBook } from "./useBooks";
+import { useUpdateBook, useUploadCover } from "./useBooks";
 import { useGoBack } from "./useGoBack";
 
 function editBookSchema(book: Book) {
@@ -60,6 +62,8 @@ function toChanges(values: EditBookValues, book: Book): BookChanges {
 
 export function EditBookForm({ book }: { book: Book }) {
   const update = useUpdateBook(book.id);
+  const upload = useUploadCover(book.id);
+  const [photo, setPhoto] = useState<File | null>(null);
   const goBack = useGoBack(`/books/${book.id}`);
   const {
     register,
@@ -79,6 +83,16 @@ export function EditBookForm({ book }: { book: Book }) {
     },
   });
 
+  const save = (values: EditBookValues) => {
+    update.mutate(toChanges(values, book), {
+      onSuccess: () => {
+        if (photo) upload.mutate(photo, { onSuccess: goBack });
+        else goBack();
+      },
+    });
+  };
+  const isSaving = update.isPending || upload.isPending;
+
   return (
     <div className="mx-auto flex w-full max-w-[560px] flex-col gap-4">
       <div className="flex items-center gap-3">
@@ -86,11 +100,7 @@ export function EditBookForm({ book }: { book: Book }) {
         <h1 className="m-0 text-[22px] font-extrabold tracking-[-0.3px]">Edit book</h1>
       </div>
 
-      <form
-        noValidate
-        className="flex flex-col gap-3.5"
-        onSubmit={handleSubmit((values) => update.mutate(toChanges(values, book), { onSuccess: goBack }))}
-      >
+      <form noValidate className="flex flex-col gap-3.5" onSubmit={handleSubmit(save)}>
         <TextField label="Title" type="text" error={errors.title?.message} {...register("title")} />
         <TextField label="Author" type="text" error={errors.author?.message} {...register("author")} />
         <div className="grid grid-cols-2 gap-2.5">
@@ -109,6 +119,7 @@ export function EditBookForm({ book }: { book: Book }) {
             {...register("giftedBy")}
           />
         </div>
+        <CoverPhotoPicker photo={photo} currentUrl={book.cover_url} onChange={setPhoto} />
         <TextField
           label="ISBN"
           type="text"
@@ -144,8 +155,11 @@ export function EditBookForm({ book }: { book: Book }) {
         />
 
         {update.isError && <FormError message={apiErrorMessage(update.error)} />}
-        <Button type="submit" isLoading={update.isPending}>
-          {update.isPending ? "Saving…" : "Save changes"}
+        {upload.isError && (
+          <FormError message={`Your changes are saved, but the photo isn't. ${apiErrorMessage(upload.error)}`} />
+        )}
+        <Button type="submit" isLoading={isSaving}>
+          {isSaving ? "Saving…" : "Save changes"}
         </Button>
       </form>
     </div>

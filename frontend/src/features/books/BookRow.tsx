@@ -3,6 +3,7 @@ import { Link } from "react-router";
 import type { Book } from "../../api/books";
 import { Cover } from "../../components/Cover";
 import { StatusChip } from "../../components/StatusChip";
+import { readingDays, readingTimeLabel } from "./readingTime";
 
 export function BookRow({ book }: { book: Book }) {
   return (
@@ -17,6 +18,12 @@ export function BookRow({ book }: { book: Book }) {
           <span className="truncate text-[13px] text-text-secondary">{book.author}</span>
           <span className="flex flex-wrap gap-1.5">
             <StatusChip book={book} />
+            {/* Left out at 0 days, where there's no real length to show on a short row. */}
+            {Boolean(readingDays(book)) && (
+              <span className="rounded-full bg-to-read-bg px-2.5 py-0.5 text-xs font-semibold whitespace-nowrap text-to-read">
+                {readingTimeLabel(book)}
+              </span>
+            )}
             {book.gifted_by && (
               <span className="max-w-full truncate rounded-full bg-gifted-bg px-2.5 py-0.5 text-xs font-semibold text-gifted">
                 Gift · {book.gifted_by}

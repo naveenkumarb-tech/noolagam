@@ -1,8 +1,10 @@
+import asyncio
 from typing import Annotated
 
-from fastapi import APIRouter, BackgroundTasks, Query, status
+from fastapi import APIRouter, BackgroundTasks, Query, Request, UploadFile, status
 
-from app.core.errors import BookLookupNotFoundError, BookLookupUnavailableError
+from app.core.errors import BookLookupNotFoundError, BookLookupUnavailableError, ImageTooLargeError
+from app.middleware.rate_limit import COVER_UPLOAD_LIMIT, enforce_rate_limit
 from app.routers.deps import BookQueryDep, CurrentUser, RedisDep, SessionDep
 from app.schemas.book import (
     BookCounts,
@@ -19,7 +21,7 @@ from app.schemas.book import (
     UpdateProgressRequest,
 )
 from app.services import books as books_service
-from app.services import open_library
+from app.services import cover_files, open_library
 from app.worker.tasks import enqueue_book_enrichment
 
 router = APIRouter(prefix="/books", tags=["books"])
@@ -107,6 +109,27 @@ async def update_book(
 @router.delete("/{book_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_book(book_id: int, user: CurrentUser, session: SessionDep, redis: RedisDep) -> None:
     await books_service.delete_book(session, redis, user.id, book_id)
+
+
+@router.post("/{book_id}/cover")
+async def upload_cover(
+    book_id: int,
+    photo: UploadFile,
+    request: Request,
+    user: CurrentUser,
+    session: SessionDep,
+    redis: RedisDep,
+) -> BookResponse:
+    ip = request.client.host if request.client else "unknown"
+    await enforce_rate_limit(redis, "cover_upload", COVER_UPLOAD_LIMIT, ip, user.email)
+    # One byte over the limit is enough to know it's too large, without reading all of a huge file.
+    data = await photo.read(cover_files.MAX_UPLOAD_BYTES + 1)
+    if len(data) > cover_files.MAX_UPLOAD_BYTES:
+        raise ImageTooLargeError()
+    processed = await asyncio.to_thread(cover_files.process, data)
+    return BookResponse.model_validate(
+        await books_service.set_book_cover(session, user.id, book_id, processed)
+    )
 
 
 @router.post("/{book_id}/reset")

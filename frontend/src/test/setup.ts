@@ -9,6 +9,10 @@ HTMLDialogElement.prototype.showModal ??= function (this: HTMLDialogElement) {
   this.open = true;
 };
 
+// jsdom has no object URLs, which show a chosen photo before it is uploaded.
+URL.createObjectURL ??= () => "blob:chosen-photo";
+URL.revokeObjectURL ??= () => {};
+
 // jsdom has no layout, and the charting library needs this to exist.
 globalThis.ResizeObserver ??= class {
   observe() {}

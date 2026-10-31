@@ -52,6 +52,12 @@ describe("HomePage", () => {
     expect(greeting(20)).toBe("Good evening");
   });
 
+  it("is titled with the app's name", () => {
+    renderWithProviders(<HomePage />);
+
+    expect(screen.getByRole("heading", { level: 1, name: "Noolagam" })).toBeInTheDocument();
+  });
+
   it("shows books being read with their progress", async () => {
     renderWithProviders(<HomePage />);
 

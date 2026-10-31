@@ -2,6 +2,7 @@ import asyncio
 from collections.abc import AsyncIterator, Callable
 from dataclasses import dataclass, field
 from email.message import EmailMessage
+from pathlib import Path
 from typing import Any
 
 import httpx
@@ -55,6 +56,12 @@ def alembic_config() -> Config:
 def _migrated_database() -> None:
     asyncio.run(_create_test_database())
     command.upgrade(alembic_config(), "head")
+
+
+@pytest.fixture(autouse=True)
+def media_dir(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+    monkeypatch.setattr(get_settings(), "media_dir", str(tmp_path))
+    return tmp_path
 
 
 @pytest.fixture(autouse=True)

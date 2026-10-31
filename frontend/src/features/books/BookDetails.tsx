@@ -13,6 +13,7 @@ import { formatBookDate } from "./formatDate";
 import { NotesEditor } from "./NotesEditor";
 import { ProgressCard } from "./ProgressCard";
 import { RatingPicker } from "./RatingPicker";
+import { readingTimeLabel } from "./readingTime";
 import { useDeleteBook, useFinishReading, useResetBook, useStartReading } from "./useBooks";
 import { useGoBack } from "./useGoBack";
 
@@ -27,12 +28,16 @@ function InfoTile({ label, value, valueClass = "" }: { label: string; value: str
 
 function FinishedCard({ book }: { book: Book }) {
   const finish = useFinishReading();
+  const readingTime = readingTimeLabel(book);
 
   return (
     <section className="flex flex-col gap-3 rounded-2xl bg-surface p-4 shadow-card">
-      <p className="m-0 text-[15px] font-bold">
-        Finished on {book.finished_at ? formatBookDate(book.finished_at) : "—"}
-      </p>
+      <div className="flex flex-col gap-0.5">
+        <p className="m-0 text-[15px] font-bold">
+          Finished on {book.finished_at ? formatBookDate(book.finished_at) : "—"}
+        </p>
+        {readingTime && <p className="m-0 text-sm text-text-secondary">{readingTime}</p>}
+      </div>
       <RatingPicker
         value={book.rating}
         onChange={(rating) => finish.mutate({ bookId: book.id, rating })}

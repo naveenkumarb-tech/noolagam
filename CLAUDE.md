@@ -30,6 +30,8 @@ The owner changed the order from section 16 of the spec: frontend screens come f
 9. Email verification removed at the owner's request (done)
 10. README with diagrams, screenshots and tested commands (done). Update its Status, Roadmap and test counts as things change.
 11. Android APK with Capacitor, tested in an emulator (done; not yet on a physical phone).
+12. Cover photo upload on Add book and Edit, on the web and Android (done on the web; the Android camera and preview fixes are not yet tested).
+13. Home titled "Noolagam", an About section, and days taken per book (done on the web; the APK is rebuilt only when the owner says "ready").
 
 Every screen and feature in the spec now exists. Not built yet: JSON logging and tracing, Beat cleanup of old tokens, the rest of `cli.py`, PWA, the production frontend image, GitHub Actions, hosting. The next step has not been agreed yet. The spec's phases remain the checklist of what has to exist in the end.
 
@@ -79,9 +81,21 @@ Background and search:
 - ISBNs are normalised and checksum-validated on both client and server.
 - Search uses the `simple` config, with the last word matched as a prefix. Tamil text is tested and works: whole words, several words and prefixes all find the right book.
 - Jaeger is an optional Compose profile.
+
+Cover photos:
+- `POST /books/{id}/cover` takes one multipart file, `photo`. `cover_files.process` rebuilds it as a JPEG of at most 1200 px, turned upright, which strips EXIF including GPS. Only JPEG, PNG and WebP are accepted, judged from the content. HEIC is not supported, to avoid another native dependency.
+- Files live in `MEDIA_DIR` (the `uploads` Compose volume) under random names. `cover_url` holds a relative `/api/v1/media/covers/<name>.jpg`, which `Cover` prefixes with `VITE_API_URL` because the Android app's pages aren't at the API's address.
+- `GET /media/covers/{name}` needs no login, since `<img>` can't send a bearer token. The unguessable name is what keeps a photo private. A new photo always gets a new name, so the response can be cached for a year.
+- `RequestSizeLimitMiddleware` refuses large and chunked requests before reading them, as FastAPI saves a whole form to disk before it runs the route's login and size checks. It runs inside CORS so the app can read the error.
+- Add book saves the book first, then uploads. A failed upload is not a failed save: the book stays, the form clears, and the message links to Edit, as saving again would add a duplicate.
+- Replacing a photo or deleting the book deletes the file, after the commit. Enrichment only fills empty fields and re-reads under a lock, so it can't replace a photo. `POST /books` still only accepts `https://` covers, so a client can't point a book at another user's file.
+- There is no way to go back to having no cover yet, only to replace it.
 - Real email is set with `SMTP_*`, `EMAIL_FROM` and `FRONTEND_URL` in the root `.env`, which Git ignores; `.env.example` documents them. All blank means Mailpit. Run `docker compose up -d` to apply changes, because `restart` does not reread `.env`. Connections use STARTTLS with certificate checking, so port 465 is not supported.
 
 UI:
+- Home is titled "Noolagam", not the spec's and mockup's "Your bookshelf", at the owner's request.
+- Profile has an About section with the description, version, developer, contact email and copyright notice, all kept in `frontend/src/appInfo.ts`. The owner chose to publish that address, in the app and in this public repository. The version comes from `frontend/package.json` through Vite's `define`, so it has one source. `versionName` in `frontend/android/app/build.gradle` is separate and still says 1.0.
+- Days taken are worked out on the client, because "today" must be the user's local date. They count like the Stats average: finish date minus start date. A finished book with the same start and finish date says "Started and finished the same day", never "Read in a day", because a book added as already finished has only one date. Book rows leave out a length of 0.
 - Home gets an "Up next" section with up to 3 to-read books and a Start button, to meet NFR-26.
 - Profile is reached from an avatar in the mobile header and the bottom of the laptop sidebar.
 - Book detail also shows description, rating and ISBN.

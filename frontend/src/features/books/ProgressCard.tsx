@@ -8,6 +8,7 @@ import { FormError } from "../../components/FormError";
 import { ProgressBar } from "../../components/ProgressBar";
 import { TextField } from "../../components/TextField";
 import { pageSchema } from "./pageSchema";
+import { readingTimeLabel } from "./readingTime";
 import { useUpdateProgress } from "./useBooks";
 
 export function ProgressCard({ book }: { book: Book }) {
@@ -21,6 +22,7 @@ export function ProgressCard({ book }: { book: Book }) {
     defaultValues: { currentPage: book.current_page },
   });
 
+  const readingTime = readingTimeLabel(book);
   const label = book.page_count === null ? "Current page" : `Current page (of ${book.page_count})`;
 
   return (
@@ -34,6 +36,7 @@ export function ProgressCard({ book }: { book: Book }) {
       {book.progress_percent !== null && (
         <ProgressBar percent={book.progress_percent} label={`Progress in ${book.title}`} />
       )}
+      {readingTime && <p className="m-0 text-sm text-text-secondary">{readingTime}</p>}
       <form
         noValidate
         className="flex flex-col gap-3"

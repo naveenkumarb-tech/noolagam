@@ -13,6 +13,7 @@ import {
   updateProgress,
   type Book,
 } from "../api/books";
+import { localDate } from "../features/books/localDate";
 import { httpError, networkError } from "../test/httpError";
 import { makeBook, renderWithProviders } from "../test/renderWithProviders";
 import { BookDetailPage } from "./BookDetailPage";
@@ -309,5 +310,26 @@ describe("BookDetailPage", () => {
       expect(await screen.findByRole("alert")).toHaveTextContent("Your notes were not saved");
       expect(notes).toHaveValue("Important thought");
     });
+  });
+
+  it("shows how long a finished book took to read", async () => {
+    renderPage({ status: "finished", started_at: "2026-10-01", finished_at: "2026-10-13" });
+    await loaded();
+
+    expect(screen.getByText("Read in 12 days")).toBeInTheDocument();
+  });
+
+  it("shows how long a book has been read so far", async () => {
+    renderPage({ status: "reading", started_at: localDate(new Date(Date.now() - 5 * 24 * 60 * 60 * 1000)) });
+    await loaded();
+
+    expect(screen.getByText(/^Reading for [456] days$/)).toBeInTheDocument();
+  });
+
+  it("shows no reading time before a book is started", async () => {
+    renderPage({ status: "to_read", started_at: null });
+    await loaded();
+
+    expect(screen.queryByText(/Read in|Reading for|Started today/)).not.toBeInTheDocument();
   });
 });

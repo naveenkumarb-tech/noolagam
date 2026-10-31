@@ -1,7 +1,7 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation } from "@tanstack/react-query";
 import { isAxiosError } from "axios";
-import { CircleCheck } from "lucide-react";
+import { CircleCheck, TriangleAlert } from "lucide-react";
 import { useEffect, useRef, useState, type KeyboardEvent } from "react";
 import { useForm, useWatch } from "react-hook-form";
 import { Link } from "react-router";
@@ -14,10 +14,11 @@ import { FormError } from "../../components/FormError";
 import { InfoBox } from "../../components/InfoBox";
 import { TextField } from "../../components/TextField";
 import { addBookSchema, type AddBookFormValues } from "./addBookSchema";
+import { CoverPhotoPicker } from "./CoverPhotoPicker";
 import { isValidIsbn, normalizeIsbn } from "./isbn";
 import { localDate } from "./localDate";
 import { RatingPicker } from "./RatingPicker";
-import { useCreateBook } from "./useBooks";
+import { useCreateBook, type SavedBook } from "./useBooks";
 
 const STATUS_OPTIONS: { value: BookStatus; label: string }[] = [
   { value: "to_read", label: "To read" },
@@ -72,7 +73,8 @@ function lookupErrorMessage(error: unknown): string {
 export function AddBookForm() {
   const create = useCreateBook();
   const [found, setFound] = useState<BookLookup | null>(null);
-  const [savedTitle, setSavedTitle] = useState<string | null>(null);
+  const [photo, setPhoto] = useState<File | null>(null);
+  const [saved, setSaved] = useState<SavedBook | null>(null);
   const savedMessage = useRef<HTMLDivElement>(null);
   const {
     register,
@@ -103,10 +105,10 @@ export function AddBookForm() {
 
   // The form is reset for the next book, so the page returns to the top where this message is.
   useEffect(() => {
-    if (savedTitle) {
+    if (saved) {
       savedMessage.current?.scrollIntoView?.({ block: "center" });
     }
-  }, [savedTitle]);
+  }, [saved]);
 
   const lookUp = () => {
     const isbn = getValues("isbn").trim();
@@ -118,7 +120,7 @@ export function AddBookForm() {
     }
     clearErrors("isbn");
     setFound(null);
-    setSavedTitle(null);
+    setSaved(null);
     lookup.mutate(normalizeIsbn(isbn));
   };
 
@@ -130,11 +132,12 @@ export function AddBookForm() {
   };
 
   const onSubmit = (values: AddBookFormValues) => {
-    setSavedTitle(null);
-    create.mutate(toNewBook(values, found), {
-      onSuccess: (book) => {
-        setSavedTitle(book.title);
+    setSaved(null);
+    create.mutate({ book: toNewBook(values, found), photo }, {
+      onSuccess: (result) => {
+        setSaved(result);
         setFound(null);
+        setPhoto(null);
         lookup.reset();
         reset(defaultValues());
       },
@@ -144,11 +147,21 @@ export function AddBookForm() {
   return (
     <form noValidate onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-4">
       <div ref={savedMessage} role="status" className="empty:hidden">
-        {savedTitle && (
+        {saved && !saved.photoError && (
           <InfoBox icon={CircleCheck}>
-            <strong>{savedTitle}</strong> is on your shelf. Add another below, or{" "}
+            <strong>{saved.book.title}</strong> is on your shelf. Add another below, or{" "}
             <Link to="/" className="font-bold text-reading underline hover:text-reading">
               go to Home
+            </Link>
+            .
+          </InfoBox>
+        )}
+        {saved && Boolean(saved.photoError) && (
+          <InfoBox icon={TriangleAlert}>
+            <strong>{saved.book.title}</strong> is on your shelf, but its photo wasn't saved.{" "}
+            {apiErrorMessage(saved.photoError).replace(/\.?$/, ".")}{" "}
+            <Link to={`/books/${saved.book.id}/edit`} className="font-bold text-reading underline hover:text-reading">
+              Try again from Edit
             </Link>
             .
           </InfoBox>
@@ -238,6 +251,8 @@ export function AddBookForm() {
           {...register("giftedBy")}
         />
       </div>
+
+      <CoverPhotoPicker photo={photo} currentUrl={found?.cover_url ?? null} onChange={setPhoto} />
 
       <fieldset className="m-0 flex flex-col gap-1.5 border-0 p-0">
         <legend className="mb-1.5 p-0 text-sm font-semibold">Status</legend>
