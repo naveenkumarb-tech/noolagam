@@ -297,11 +297,11 @@ docker run --rm --user "$(id -u):$(id -g)" -e HOME=/tmp -v "$PWD/frontend":/app 
 
 ## Deployment notes
 
-This hasn't been deployed yet. When it is, it will need:
+This hasn't been deployed yet, but [`deploy/`](deploy/README.md) has a tested production setup and step-by-step instructions for running it on one server with automatic HTTPS. Moving to other hosting would need:
 
 - **Backend:** `backend/Dockerfile` has a `prod` target that runs Gunicorn with Uvicorn workers and applies migrations on start. Services such as Render, Railway or AWS EC2 would work, with managed PostgreSQL and Redis.
 - **Worker:** a second process running the same image: `celery -A app.worker.celery_app worker`.
-- **Frontend and API on one origin:** browsers can block the refresh cookie across different sites, so the plan is for Nginx to serve the app and proxy `/api`.
+- **Frontend and API on one origin:** browsers can block the refresh cookie across different sites, so Caddy serves the app and proxies `/api` in the `deploy/` setup.
 - **Uploaded photos:** `MEDIA_DIR` must be on storage that survives a restart. Many hosts have temporary disks, so these need a persistent disk or a move to object storage such as S3. With more than one server, they must also share that storage.
 - **Settings:** see `backend/.env.example`. In production, the app refuses to start with insecure cookies or the development JWT secret.
 - **HTTPS and real email**, with `FRONTEND_URL` set to the public address so that reset links work.
@@ -309,7 +309,8 @@ This hasn't been deployed yet. When it is, it will need:
 ## Roadmap
 
 - [x] Android APK built with Capacitor
-- [ ] Installable web app (PWA) and a production frontend image with Nginx
+- [x] Production setup with Caddy, automatic HTTPS and backups
+- [ ] Installable web app (PWA)
 - [ ] GitHub Actions for lint, tests, builds and publishing the APK
 - [ ] Structured JSON logging and OpenTelemetry tracing
 - [ ] Scheduled cleanup of expired tokens

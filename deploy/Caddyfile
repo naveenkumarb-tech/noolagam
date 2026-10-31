@@ -1,0 +1,16 @@
+# Gets and renews the HTTPS certificate by itself.
+{$DOMAIN} {
+	encode zstd gzip
+
+	@api path /api/* /health
+	handle @api {
+		reverse_proxy api:8000
+	}
+
+	# Unknown paths get the app, whose router shows the right screen, such as a password reset link.
+	handle {
+		root * /srv
+		try_files {path} /index.html
+		file_server
+	}
+}

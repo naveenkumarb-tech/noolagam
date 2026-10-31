@@ -21,7 +21,7 @@ The app needs a running backend, and its address is built into the APK when you 
 | Backend | Build with | Works |
 |---|---|---|
 | On your computer | `http://<your-computer's-address>:8000` | Only on the same Wi-Fi, while your computer is on |
-| Hosted online | `https://your-api-address` | Anywhere |
+| Hosted online, see [`deploy/`](../../deploy/README.md) | `https://your-api-address` | Anywhere, with your computer off |
 
 To run the backend on your computer, start from the project's root folder:
 

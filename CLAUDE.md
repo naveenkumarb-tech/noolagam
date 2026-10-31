@@ -32,15 +32,16 @@ The owner changed the order from section 16 of the spec: frontend screens come f
 11. Android APK with Capacitor, tested in an emulator (done; not yet on a physical phone).
 12. Cover photo upload on Add book and Edit, on the web and Android (done; tested in an Android 15 emulator, not yet on a physical phone).
 13. Home titled "Noolagam", an About section, and days taken per book (done; tested on the web and in the emulator).
+14. Production setup in `deploy/`, with Caddy, HTTPS and backups, and a guide for a free Oracle server (done and tested locally on x86; not yet run on a real server or on Arm).
 
-Every screen and feature in the spec now exists. Not built yet: JSON logging and tracing, Beat cleanup of old tokens, the rest of `cli.py`, PWA, the production frontend image, GitHub Actions, hosting. The next step has not been agreed yet. The spec's phases remain the checklist of what has to exist in the end.
+Every screen and feature in the spec now exists. Not built yet: JSON logging and tracing, Beat cleanup of old tokens, the rest of `cli.py`, PWA, GitHub Actions, and for the Play Store: delete account, a privacy policy and a signed release build. The next step has not been agreed yet. The spec's phases remain the checklist of what has to exist in the end.
 
 ## Decisions that refine the spec
 
 Security and stack:
 - Use `bcrypt` directly instead of `passlib`, which is unmaintained. Use PyJWT, and `uvicorn-worker` for Gunicorn.
 - Password rule everywhere: at least 8 characters and at most 72 bytes. The mockup's "number or symbol" line is dropped.
-- The web refresh cookie needs a same-site deployment: Nginx proxies `/api` so frontend and API share one origin. Cookie settings come from env. Android gets the refresh token in JSON.
+- The web refresh cookie needs a same-site deployment: Caddy proxies `/api` so frontend and API share one origin. Caddy replaces the spec's Nginx because it gets and renews HTTPS certificates by itself. Cookie settings come from env. Android gets the refresh token in JSON.
 - Change password also logs out other sessions, starts a new session for this device and cancels unused reset links. A wrong current password is 400, not 401, because the app reads 401 as an expired session. It is rate limited per IP and email. Reusing a refresh token revokes all of the user's sessions, and the web app locks refreshes so two tabs cannot trigger this by accident.
 - Android: requests send `X-Client-Type: native`, and login, register and change-password then return the refresh token in the body, with no cookie, because the app stores it with `@capacitor/preferences`. `/auth/refresh` and `/auth/logout` take it in the body. A cookie alone never returns a token in the body, or a script in a browser could read what the cookie hides. `allowBackup` is off, so the token is not copied to cloud backups.
 - Android build: `http://` is allowed, with `androidScheme: http`, only when `VITE_API_URL` is `http://`, for testing on Wi-Fi. `build-apk.sh` keeps the debug signing key in the `noolagam-gradle-cache` volume, because Android refuses to update an app signed with a different key. Deleting that volume means uninstalling the app once.
@@ -54,7 +55,7 @@ Security and stack:
 - Rate limits fail open if Redis is down. Failed-login timing is equalised with a dummy bcrypt check.
 - Session: the app calls `/auth/refresh` on load, because the access token lives in memory. Refreshes are shared within a tab and serialised across tabs with `navigator.locks`, since a replayed token revokes every session. `navigator.locks` needs HTTPS or localhost, so several tabs over plain `http://` on the LAN can still trigger this.
 - Only a 401 from `/auth/refresh` ends the session; a network failure keeps it. The React Query cache is cleared when a session ends.
-- In development the browser calls the same origin and the Vite proxy forwards `/api`, so laptop and phone both work without CORS or env changes. This mirrors the planned Nginx setup.
+- In development the browser calls the same origin and the Vite proxy forwards `/api`, so laptop and phone both work without CORS or env changes. This mirrors the production setup.
 
 Reading flow:
 - Add, start, finish and edit accept an optional date, defaulting to the user's local today. This allows backfilling old books and avoids UTC date errors.
@@ -131,5 +132,7 @@ docker run --rm --user 1000:1000 -e HOME=/tmp -v "$PWD":/app -w /app node:22-alp
 The worker does not auto-reload: run `docker compose restart worker` after changing task or email code. After adding a frontend dependency, run `docker compose restart frontend`.
 
 To build the Android app (Java and the Android SDK are in Docker): `frontend/build-apk.sh http://<computer-address>:8000`. The result is `apk/noolagam-debug.apk`, which Git ignores. `frontend/android/` is committed, apart from its build output.
+
+To run on a server, see [deploy/README.md](deploy/README.md). `deploy/docker-compose.yml` is separate from the development one, has its own project name so that they can't share volumes, and publishes only Caddy. It sets `FORWARDED_ALLOW_IPS` because Gunicorn would otherwise see every user as Caddy, sharing one per-IP rate limit.
 
 To add sample books to an account: `docker compose exec api python -m app.cli seed-books you@example.com`

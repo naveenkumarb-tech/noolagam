@@ -1,0 +1,108 @@
+# The whole app on one server. Only Caddy is reachable from outside. See README.md in this folder.
+name: noolagam-server
+
+x-logging: &logging
+  logging:
+    driver: json-file
+    options:
+      # Without a limit, logs slowly fill the disk.
+      max-size: "10m"
+      max-file: "3"
+
+x-backend: &backend
+  build:
+    context: ../backend
+    target: prod
+  restart: unless-stopped
+  environment: &backend-env
+    ENVIRONMENT: production
+    LOG_LEVEL: ${LOG_LEVEL:-INFO}
+    DATABASE_URL: postgresql+asyncpg://noolagam:${POSTGRES_PASSWORD:?}@db:5432/noolagam
+    REDIS_URL: redis://redis:6379/0
+    JWT_SECRET: ${JWT_SECRET:?}
+    # The website shares the API's address, so this is only for the Android app.
+    CORS_ORIGINS: https://localhost
+    FRONTEND_URL: https://${DOMAIN:?}
+    COOKIE_SECURE: "true"
+    SMTP_HOST: ${SMTP_HOST:?}
+    SMTP_PORT: ${SMTP_PORT:-587}
+    SMTP_USER: ${SMTP_USER:-}
+    SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+    EMAIL_FROM: ${EMAIL_FROM:?}
+  <<: *logging
+
+services:
+  db:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: noolagam
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?}
+      POSTGRES_DB: noolagam
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U noolagam -d noolagam"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    <<: *logging
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    <<: *logging
+
+  api:
+    <<: *backend
+    environment:
+      <<: *backend-env
+      # Only Caddy can reach the API, and it sets this header itself, so each user gets their own rate limit.
+      FORWARDED_ALLOW_IPS: "*"
+    volumes:
+      - uploads:/data/uploads
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  worker:
+    <<: *backend
+    command: celery -A app.worker.celery_app worker --loglevel=INFO --concurrency=2
+    healthcheck:
+      disable: true
+    depends_on:
+      api:
+        condition: service_healthy
+
+  web:
+    build:
+      context: ../frontend
+      dockerfile: ../deploy/web.Dockerfile
+    restart: unless-stopped
+    environment:
+      DOMAIN: ${DOMAIN:?}
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      # Keeps the HTTPS certificate, so it isn't requested again on every restart.
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      api:
+        condition: service_healthy
+    <<: *logging
+
+volumes:
+  postgres_data:
+  uploads:
+  caddy_data:
+  caddy_config:
